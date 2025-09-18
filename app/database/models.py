@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, DECIMAL, TIMESTAMP, Text, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import  declarative_base, relationship
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
 Base = declarative_base()
