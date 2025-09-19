@@ -1,4 +1,14 @@
-from sqlalchemy import Column, Integer, String, Boolean, DECIMAL, TIMESTAMP, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import (
+    DECIMAL,
+    TIMESTAMP,
+    Boolean,
+    Column,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 

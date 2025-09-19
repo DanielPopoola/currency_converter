@@ -1,12 +1,12 @@
-import os
 import logging
+import os
 import urllib.parse
-from typing import Dict, Any
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from .base_provider import APIProvider, APICallResult, ExchangeRateResponse
+from .base_provider import APICallResult, APIProvider, ExchangeRateResponse
 
 
 class OpenExchangeProvider(APIProvider):
@@ -20,13 +20,13 @@ class OpenExchangeProvider(APIProvider):
             timeout=3
         )
 
-    def _build_request_url(self, endpoint: str, params: Dict[str, Any]) -> str:
+    def _build_request_url(self, endpoint: str, params: dict[str, Any]) -> str:
         """Build OpenExchange url with API key authentication"""
         params['app_id'] = self.api_key
 
         return f"{self.base_url}{endpoint}?{urllib.parse.urlencode(params)}"
     
-    def _parse_rate_response(self, response_data: Dict[str, Any], base: str, target: str) -> ExchangeRateResponse:
+    def _parse_rate_response(self, response_data: dict[str, Any], base: str, target: str) -> ExchangeRateResponse:
         """Parse OpenExchange response format"""
         try:
             if "base" not in response_data:
@@ -58,9 +58,9 @@ class OpenExchangeProvider(APIProvider):
             # Convert timestamp if provided
             api_timestamp = response_data.get('timestamp')
             if api_timestamp:
-                timestamp = datetime.fromtimestamp(api_timestamp, tz=timezone.utc)
+                timestamp = datetime.fromtimestamp(api_timestamp, tz=UTC)
             else:
-                timestamp = datetime.now(timezone.utc)
+                timestamp = datetime.now(UTC)
 
             return ExchangeRateResponse(
                 base_currency=base,

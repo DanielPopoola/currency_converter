@@ -1,13 +1,12 @@
-import os
-from sqlalchemy import create_engine, Index
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import QueuePool
-from sqlalchemy import text
-from contextlib import contextmanager
-from typing import Generator
 import logging
+import os
+from collections.abc import Generator
+from contextlib import contextmanager
 
-from database.models import Base, CurrencyPair, ExchangeRate, APIProvider, APICallLog
+from database.models import APIProvider, Base, CurrencyPair
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import QueuePool
 
 logger = logging.getLogger(__name__)
 

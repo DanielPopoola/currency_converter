@@ -1,10 +1,10 @@
-import redis
 import json
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
-from enum import Enum
 import logging
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, Optional
 
+import redis
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class RedisManager:
         self.RATE_CACHE_TTL = 300
         self.CIRCUIT_BREAKER_TTL = 3600
 
-    def _get_rate_cache_key(self, base: str, target: str, timestamp_bucket: Optional[str] = None) -> str:
+    def _get_rate_cache_key(self, base: str, target: str, timestamp_bucket: str | None = None) -> str:
         """Generate cache key for exchange rates with 5-minute bucketing"""
         if not timestamp_bucket:
             # Create 5-minute bucket: 2025-09-18T10:35:00 -> 2025-09-18T10:30:00
@@ -37,7 +37,7 @@ class RedisManager:
         return f"circuit_breaker:{provider_id}:{suffix}"
     
     # Rate caching method
-    async def rate_cache(self, base: str, target: str, rate_data: Dict[str, Any]):
+    async def rate_cache(self, base: str, target: str, rate_data: dict[str, Any]):
         """Cache exchange rate with TTL-only expiry"""
         try:
             cache_key = self._get_rate_cache_key(base, target)
@@ -63,7 +63,7 @@ class RedisManager:
             logger.error(f"Failed to cache rate {base}->{target}: {e}")
             return False
         
-    async def get_cached_rate(self, base: str, target: str) -> Optional[Dict[str, Any]]:
+    async def get_cached_rate(self, base: str, target: str) -> dict[str, Any] | None:
         """Retrieve cached rate - TTL handles expiry automatically"""
         try:
             cache_key = self._get_rate_cache_key(base, target)
@@ -162,7 +162,7 @@ class RedisManager:
         
     # Utility methods
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check Redis connection health"""
         try:
             start_time = datetime.now()

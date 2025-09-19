@@ -1,9 +1,10 @@
+import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
+
 import httpx
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -16,23 +17,23 @@ class ExchangeRateResponse:
     rate: float
     timestamp: datetime
     provider_name: str
-    raw_response: Dict[str, Any]  # Original API response for debugging
+    raw_response: dict[str, Any]  # Original API response for debugging
     is_successful: bool = True
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
-ParsedData = Union[ExchangeRateResponse, List[ExchangeRateResponse], List[str]]
+ParsedData = ExchangeRateResponse | list[ExchangeRateResponse] | list[str]
 
 @dataclass
 class APICallResult:
     """Tracks the API call performance and outcome"""
     provider_name: str
     endpoint: str
-    http_status_code: Optional[int]
+    http_status_code: int | None
     response_time_ms: int
     was_successful: bool
-    error_message: Optional[str] = None
-    data: Optional[ParsedData] = None
-    raw_response: Optional[Dict[str, Any]] = None
+    error_message: str | None = None
+    data: ParsedData | None = None
+    raw_response: dict[str, Any] | None = None
 
 
 class APIProvider(ABC):
@@ -66,16 +67,16 @@ class APIProvider(ABC):
         pass
     
     @abstractmethod
-    def _parse_rate_response(self, response_data: Dict[str, Any], base: str, target: str) -> ExchangeRateResponse:
+    def _parse_rate_response(self, response_data: dict[str, Any], base: str, target: str) -> ExchangeRateResponse:
         """Parse API-specific response format into standardized format"""
         pass
     
     @abstractmethod
-    def _build_request_url(self, endpoint: str, params: Dict[str, Any]) -> str:
+    def _build_request_url(self, endpoint: str, params: dict[str, Any]) -> str:
         """Build API-specific request URL with authentication"""
         pass
 
-    async def _make_request(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> APICallResult:
+    async def _make_request(self, endpoint: str, params: dict[str, Any] | None = None) -> APICallResult:
         """Common HTTP request handling with timing and error management"""
         start_time = datetime.now()
         url = self._build_request_url(endpoint, params or {})
