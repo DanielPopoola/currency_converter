@@ -46,7 +46,7 @@ class APIProvider(ABC):
 
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout),
-            headers={"User-Agent": "CurrencyConverter/1.0"},
+            headers={"accept": "application/json"},
             limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
         )
 
@@ -79,6 +79,7 @@ class APIProvider(ABC):
         """Common HTTP request handling with timing and error management"""
         start_time = datetime.now()
         url = self._build_request_url(endpoint, params or {})
+        logger.info(f"Fetching data from URL: {url}")
 
         try:
             logger.debug(f"Calling {self.name} API: {endpoint}")
