@@ -1,10 +1,10 @@
 import asyncio
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 from datetime import datetime, UTC
 import logging
 from dataclasses import dataclass
 
-from providers.base import APIProvider, ExchangeRateResponse, APICallResult
+from providers.base import APIProvider, APICallResult
 from services.circuit_breaker import CircuitBreaker, CircuitBreakerError
 from cache.redis_manager import RedisManager
 from config.database import DatabaseManager
@@ -38,13 +38,13 @@ class RateAggregatorService:
     def __init__(self,
                  providers: Dict[str, APIProvider], # provider_name -> provider_instance
                  circuit_breakers: Dict[str, CircuitBreaker],  # provider_name -> circuit_breaker
-                 redis_manger: RedisManager,
+                 redis_manager: RedisManager,
                  db_manager: DatabaseManager,
                  primary_provider: str = "FixerIO"):
         
         self.providers = providers
         self.circuit_breakers = circuit_breakers
-        self.redis_manager = redis_manger
+        self.redis_manager = redis_manager
         self.db_manager = db_manager
         self.primary_provider = primary_provider
 

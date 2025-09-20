@@ -12,9 +12,9 @@ from .base import APICallResult, APIProvider, ExchangeRateResponse
 class FixerIOProvider(APIProvider):
     """Primary provider implementation"""
 
-    def __init__(self):
+    def __init__(self, api_key: str):
         super().__init__(
-            api_key = os.getenv("FIXER_IO_API_KEY", "api_key"),
+            api_key=api_key,
             base_url="http://data.fixer.io/api/",
             name="FixerIO",
             timeout=3

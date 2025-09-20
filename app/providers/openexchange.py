@@ -12,9 +12,9 @@ from .base import APICallResult, APIProvider, ExchangeRateResponse
 class OpenExchangeProvider(APIProvider):
     """Secondary provider implementation"""
 
-    def __init__(self):
+    def __init__(self, api_key: str):
         super().__init__(
-            api_key = os.getenv("OPENEXCHANGE_APP_ID", "api_key"),
+            api_key=api_key,
             base_url="https://openexchangerates.org/api/",
             name="OpenExchange",
             timeout=3
