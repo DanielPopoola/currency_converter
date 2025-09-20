@@ -6,7 +6,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from .base_provider import APICallResult, APIProvider, ExchangeRateResponse
+from .base import APICallResult, APIProvider, ExchangeRateResponse
 
 
 class FixerIOProvider(APIProvider):
@@ -16,7 +16,7 @@ class FixerIOProvider(APIProvider):
         super().__init__(
             api_key = os.getenv("FIXER_IO_API_KEY", "api_key"),
             base_url="http://data.fixer.io/api/",
-            name="fixer.io",
+            name="FixerIO",
             timeout=3
         )
 

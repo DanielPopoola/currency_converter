@@ -6,17 +6,17 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from .base_provider import APICallResult, APIProvider, ExchangeRateResponse
+from .base import APICallResult, APIProvider, ExchangeRateResponse
 
 
 class OpenExchangeProvider(APIProvider):
-    """Primary provider implementation"""
+    """Secondary provider implementation"""
 
     def __init__(self):
         super().__init__(
             api_key = os.getenv("OPENEXCHANGE_APP_ID", "api_key"),
             base_url="https://openexchangerates.org/api/",
-            name="openexchange",
+            name="OpenExchange",
             timeout=3
         )
 
