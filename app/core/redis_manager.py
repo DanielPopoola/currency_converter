@@ -1,8 +1,8 @@
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, UTC
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
 import redis
 
@@ -26,7 +26,7 @@ class RedisManager:
         """Generate cache key for exchange rates with 5-minute bucketing"""
         if not timestamp_bucket:
             # Create 5-minute bucket: 2025-09-18T10:35:00 -> 2025-09-18T10:30:00
-            now = datetime.now()
+            now = datetime.now(tz=UTC)
             bucket_minutes = (now.minute // 5) * 5
             timestamp_bucket = now.replace(minute=bucket_minutes, second=0, microsecond=0).strftime("%Y%m%d%H%M%S")
 
@@ -45,7 +45,7 @@ class RedisManager:
             # Add metadata to cached data
             cache_data = {
                 **rate_data,
-                "cached_at": datetime.now().isoformat(),
+                "cached_at": datetime.now(tz=UTC).isoformat(),
                 "cache_key": cache_key
             }
 
@@ -112,7 +112,7 @@ class RedisManager:
             pipeline.setex(failures_key, self.CIRCUIT_BREAKER_TTL, failure_count)
 
             if state == CircuitBreakerState.OPEN:
-                pipeline.setex(last_failure_key, self.CIRCUIT_BREAKER_TTL, datetime.now().isoformat())
+                pipeline.setex(last_failure_key, self.CIRCUIT_BREAKER_TTL, datetime.now(tz=UTC).isoformat())
 
             pipeline.execute()
 
@@ -165,9 +165,9 @@ class RedisManager:
     async def health_check(self) -> dict[str, Any]:
         """Check Redis connection health"""
         try:
-            start_time = datetime.now()
+            start_time = datetime.now(tz=UTC)
             self.redis_client.ping()
-            response_time = (datetime.now() - start_time).total_seconds() * 1000
+            response_time = (datetime.now(tz=UTC) - start_time).total_seconds() * 1000
             
             return {
                 "status": "healthy",
