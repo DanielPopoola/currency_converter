@@ -1,10 +1,9 @@
 import logging
-from datetime import datetime, timedelta, UTC
-from enum import Enum
-from typing import Any, Optional, Awaitable, Callable
+from datetime import datetime, UTC
+from typing import Any, Awaitable, Callable
 
 
-from core.redis_manager import RedisManager, CircuitBreakerState
+from cache.redis_manager import RedisManager, CircuitBreakerState
 from database.models import CircuitBreakerLog
 from config.database import DatabaseManager
 

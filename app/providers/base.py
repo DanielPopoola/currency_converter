@@ -2,7 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, List
 
 import httpx
 
@@ -21,7 +21,7 @@ class ExchangeRateResponse:
     is_successful: bool = True
     error_message: str | None = None
 
-ParsedData = ExchangeRateResponse | list[ExchangeRateResponse] | list[str]
+ParsedData = ExchangeRateResponse | List[ExchangeRateResponse] | list[str]
 
 @dataclass
 class APICallResult:

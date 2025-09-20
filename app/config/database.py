@@ -1,6 +1,6 @@
 import logging
 import os
-from collections.abc import Generator
+from typing import Generator
 from contextlib import contextmanager
 
 from database.models import APIProvider, Base, CurrencyPair
