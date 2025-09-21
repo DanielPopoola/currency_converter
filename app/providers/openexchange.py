@@ -15,7 +15,7 @@ class OpenExchangeProvider(APIProvider):
     def __init__(self, api_key: str):
         super().__init__(
             api_key=api_key,
-            base_url="https://openexchangerates.org/api/",
+            base_url="https://openexchangerates.org/api",
             name="OpenExchange",
             timeout=3
         )
@@ -24,7 +24,7 @@ class OpenExchangeProvider(APIProvider):
         """Build OpenExchange url with API key authentication"""
         params['app_id'] = self.api_key
 
-        return f"{self.base_url}{endpoint}?{urllib.parse.urlencode(params)}"
+        return f"{self.base_url}/{endpoint}?{urllib.parse.urlencode(params)}"
     
     def _parse_rate_response(self, response_data: dict[str, Any], base: str, target: str) -> ExchangeRateResponse:
         """Parse OpenExchange response format"""

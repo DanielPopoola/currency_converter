@@ -7,9 +7,7 @@ import httpx
 from unittest.mock import AsyncMock, Mock, patch
 from datetime import datetime, UTC
 
-from app.providers.fixerio import FixerIOProvider
-from app.providers.openexchange import OpenExchangeProvider  
-from app.providers.currencyapi import CurrencyAPIProvider
+from app.providers import FixerIOProvider, OpenExchangeProvider, CurrencyAPIProvider
 from .fixtures.api_responses import (
     FIXERIO_RESPONSES, 
     OPENEXCHANGE_RESPONSES, 
