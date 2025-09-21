@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any, List
 
 import httpx
@@ -78,7 +78,7 @@ class APIProvider(ABC):
 
     async def _make_request(self, endpoint: str, params: dict[str, Any] | None = None) -> APICallResult:
         """Common HTTP request handling with timing and error management"""
-        start_time = datetime.now()
+        start_time = datetime.now(UTC)
         url = self._build_request_url(endpoint, params or {})
         logger.info(f"Fetching data from URL: {url}")
 
@@ -86,7 +86,7 @@ class APIProvider(ABC):
             logger.debug(f"Calling {self.name} API: {endpoint}")
 
             response = await self.client.get(url)
-            response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            response_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
 
             if response.status_code == 200:
                 return APICallResult(
@@ -111,7 +111,7 @@ class APIProvider(ABC):
                 )
                 
         except httpx.TimeoutException:
-            response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            response_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
             error_msg = f"Timeout after {self.timeout}s"
             logger.warning(f"{self.name} API timeout: {error_msg}")
 
@@ -124,8 +124,22 @@ class APIProvider(ABC):
                 error_message=error_msg
             )
             
+        except httpx.HTTPStatusError as e:
+            response_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+            error_msg = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+            logger.warning(f"{self.name} API error: {error_msg}")
+
+            return APICallResult(
+                provider_name=self.name,
+                endpoint=endpoint,
+                http_status_code=e.response.status_code,
+                response_time_ms=response_time_ms,
+                was_successful=False,
+                error_message=error_msg
+            )
+            
         except Exception as e:
-            response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            response_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
             error_msg = f"Network error: {str(e)}"
             logger.error(f"{self.name} API error: {error_msg}")
             
