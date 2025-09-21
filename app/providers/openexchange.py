@@ -29,8 +29,8 @@ class OpenExchangeProvider(APIProvider):
     def _parse_rate_response(self, response_data: dict[str, Any], base: str, target: str) -> ExchangeRateResponse:
         """Parse OpenExchange response format"""
         try:
-            if "base" not in response_data:
-                error_msg = response_data.get('error', {}).get('info', 'Unknown API error')
+            if response_data.get('error'):
+                error_msg = response_data.get('description', 'Unknown API error')
                 return ExchangeRateResponse(
                     base_currency=base,
                     target_currency=target,
