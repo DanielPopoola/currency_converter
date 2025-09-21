@@ -22,7 +22,7 @@ class CurrencyAPIProvider(APIProvider):
 
     def _build_request_url(self, endpoint: str, params: Dict[str, Any]) -> str:
         """Build CurrencyAPI URL with API key authentication"""
-        params['apikey'] = self.api_key
+        params['api_key'] = self.api_key
         return f"{self.base_url}/{endpoint}?{urllib.parse.urlencode(params)}"
 
     def _parse_rate_response(self, response_data: dict[str, Any], base: str, target: str) -> ExchangeRateResponse:
