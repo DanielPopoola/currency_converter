@@ -1,5 +1,4 @@
 import logging
-import os
 import urllib.parse
 from datetime import UTC, datetime
 from typing import Any
@@ -24,7 +23,7 @@ class FixerIOProvider(APIProvider):
         """Build Fixer.IO  url with API key authentication"""
         params['access_key'] = self.api_key
 
-        return f"{self.base_url}{endpoint}?{urllib.parse.urlencode(params)}"
+        return f"{self.base_url.rstrip('/')}/{endpoint}?{urllib.parse.urlencode(params)}"
     
     def _parse_rate_response(self, response_data: dict[str, Any], base: str, target: str) -> ExchangeRateResponse:
         """Parse Fixer.IO response format"""
@@ -48,7 +47,7 @@ class FixerIOProvider(APIProvider):
                     base_currency=base,
                     target_currency=target,
                     rate=0.0,
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(UTC),
                     provider_name=self.name,
                     raw_response=response_data,
                     is_successful=False,
