@@ -4,7 +4,8 @@ Shared test configuration and fixtures for provider tests.
 
 import pytest
 import httpx
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
+from decimal import Decimal
 from datetime import datetime, UTC
 
 from app.providers import FixerIOProvider, OpenExchangeProvider, CurrencyAPIProvider
@@ -155,13 +156,13 @@ def assert_exchange_rate_response(response, base, target, expected_rate=None):
     """Helper to assert ExchangeRateResponse properties"""
     assert response.base_currency == base
     assert response.target_currency == target
-    assert isinstance(response.rate, float)
+    assert isinstance(response.rate, Decimal)
     assert isinstance(response.timestamp, datetime)
     assert response.provider_name is not None
     assert response.raw_response is not None
     
     if expected_rate:
-        assert abs(response.rate - expected_rate) < 0.0001  # Float comparison
+        assert abs(response.rate - expected_rate) < 0.0001
 
 
 def assert_api_call_result(result, expected_success=True, expected_status=200):

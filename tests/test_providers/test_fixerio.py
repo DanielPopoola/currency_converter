@@ -7,6 +7,7 @@ import pytest
 from unittest.mock import patch, Mock
 from datetime import datetime, UTC
 import urllib.parse
+from decimal import Decimal
 
 from app.providers import FixerIOProvider, ExchangeRateResponse, APICallResult
 from .fixtures.api_responses import FIXERIO_RESPONSES
@@ -95,7 +96,7 @@ class TestFixerIOResponseParsing:
         
         result = fixerio_provider._parse_rate_response(response_data, "EUR", "USD")
         
-        assert_exchange_rate_response(result, "EUR", "USD", 1.23396)
+        assert_exchange_rate_response(result, "EUR", "USD", Decimal("1.23396"))
         assert result.is_successful is True
         assert result.provider_name == "FixerIO"
         assert result.raw_response == response_data
@@ -158,14 +159,14 @@ class TestFixerIOResponseParsing:
             "success": True,
             "timestamp": 1700870399,
             "base": "USD",
-            "rates": {"EUR": "0.85432"}  # String instead of number
+            "rates": {"EUR": "0.85432"}
         }
         
         result = fixerio_provider._parse_rate_response(response_data, "USD", "EUR")
         
         assert result.is_successful is True
-        assert result.rate == 0.85432
-        assert isinstance(result.rate, float)
+        assert result.rate == Decimal("0.85432")
+        assert isinstance(result.rate, Decimal)
 
 
 class TestFixerIOGetExchangeRate:
@@ -185,13 +186,13 @@ class TestFixerIOGetExchangeRate:
             assert isinstance(result.data, ExchangeRateResponse)
             assert result.data.base_currency == "EUR"
             assert result.data.target_currency == "USD"
-            assert result.data.rate == 1.23396
+            assert result.data.rate == Decimal("1.23396")
     
     @pytest.mark.asyncio
     async def test_get_exchange_rate_api_error(self, fixerio_provider):
         """Test handling FixerIO API errors"""
         mock_response = Mock()
-        mock_response.status_code = 200  # FixerIO returns 200 even for errors
+        mock_response.status_code = 200
         mock_response.json.return_value = FIXERIO_RESPONSES["api_error"]
         
         with patch.object(fixerio_provider.client, 'get', return_value=mock_response):
@@ -383,7 +384,7 @@ class TestFixerIOIntegration:
             # Verify the complete flow worked
             assert result.was_successful is True
             assert isinstance(result.data, ExchangeRateResponse)
-            assert result.data.rate == 1.23396
+            assert result.data.rate == Decimal("1.23396")
             
             # Verify URL was built correctly
             called_url = mock_get.call_args[0][0]
@@ -423,7 +424,7 @@ class TestFixerIOParametrized:
             assert result.was_successful is True
             assert result.data.base_currency == base
             assert result.data.target_currency == target
-            assert result.data.rate == 1.23456
+            assert result.data.rate == Decimal("1.23456")
     
     @pytest.mark.asyncio
     @pytest.mark.parametrize("base_currency", ["USD", "EUR", "GBP", "JPY"])
@@ -471,7 +472,7 @@ class TestFixerIOEdgeCases:
             result = await fixerio_provider.get_exchange_rate("USD", "JPY")
             
             assert result.was_successful is True
-            assert result.data.rate == 149.756789123
+            assert result.data.rate == Decimal("149.756789123")
     
     @pytest.mark.asyncio
     async def test_very_small_rate_values(self, fixerio_provider):
@@ -491,4 +492,4 @@ class TestFixerIOEdgeCases:
             result = await fixerio_provider.get_exchange_rate("USD", "SOME_CRYPTO")
             
             assert result.was_successful is True
-            assert result.data.rate == 0.00000123
+            assert result.data.rate == Decimal("0.00000123")

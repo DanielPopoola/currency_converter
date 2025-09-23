@@ -2,6 +2,7 @@ import os
 import logging
 import urllib.parse
 from datetime import datetime, UTC
+from decimal import Decimal
 from typing import Any, Dict
 
 from .base import APIProvider, ExchangeRateResponse, APICallResult
@@ -34,7 +35,7 @@ class CurrencyAPIProvider(APIProvider):
                 return ExchangeRateResponse(
                     base_currency=base,
                     target_currency=target,
-                    rate=0.0,
+                    rate=Decimal("0"),
                     timestamp=datetime.now(UTC),
                     provider_name=self.name,
                     raw_response=response_data,
@@ -49,7 +50,7 @@ class CurrencyAPIProvider(APIProvider):
                 return ExchangeRateResponse(
                     base_currency=base,
                     target_currency=target,
-                    rate=0.0,
+                    rate=Decimal("0"),
                     timestamp=datetime.now(UTC),
                     provider_name=self.name,
                     raw_response=response_data,
@@ -73,7 +74,7 @@ class CurrencyAPIProvider(APIProvider):
             return ExchangeRateResponse(
                 base_currency=base,
                 target_currency=target,
-                rate=float(rate_info["value"]),
+                rate=Decimal(str(rate_info["value"])),
                 timestamp=timestamp,
                 provider_name=self.name,
                 raw_response=response_data,
@@ -85,7 +86,7 @@ class CurrencyAPIProvider(APIProvider):
             return ExchangeRateResponse(
                 base_currency=base,
                 target_currency=target,
-                rate=0.0,
+                rate=Decimal("0"),
                 timestamp=datetime.now(UTC),
                 provider_name=self.name,
                 raw_response=response_data,
@@ -140,7 +141,7 @@ class CurrencyAPIProvider(APIProvider):
                         ExchangeRateResponse(
                             base_currency=base,
                             target_currency=target_currency,
-                            rate=float(rate_info["value"]),
+                            rate=Decimal(str(rate_info["value"])),
                             timestamp=timestamp,
                             provider_name=self.name,
                             raw_response=result.raw_response,

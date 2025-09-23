@@ -2,6 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, UTC
+from decimal import Decimal
 from typing import Any, List
 
 import httpx
@@ -14,7 +15,7 @@ class ExchangeRateResponse:
     """Standardized response from any API provider"""
     base_currency: str
     target_currency: str
-    rate: float
+    rate: Decimal
     timestamp: datetime
     provider_name: str
     raw_response: dict[str, Any]  # Original API response for debugging

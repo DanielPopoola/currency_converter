@@ -6,6 +6,7 @@ import os
 import pytest
 from unittest.mock import patch, Mock
 from datetime import datetime, UTC
+from decimal import Decimal
 import urllib.parse
 
 from app.providers import OpenExchangeProvider, ExchangeRateResponse, APICallResult
@@ -55,7 +56,7 @@ class TestOpenExchangeResponseParsing:
 
         result = openexchange_provider._parse_rate_response(response_data, "USD", "EUR")
 
-        assert_exchange_rate_response(result, "USD", "EUR", 0.85432)
+        assert_exchange_rate_response(result, "USD", "EUR", Decimal("0.85432"))
         assert result.is_successful is True
         assert result.provider_name == "OpenExchange"
         assert result.raw_response == response_data
@@ -78,7 +79,7 @@ class TestOpenExchangeGetExchangeRate:
             assert isinstance(result.data, ExchangeRateResponse)
             assert result.data.base_currency == "USD"
             assert result.data.target_currency == "EUR"
-            assert result.data.rate == 0.85432
+            assert result.data.rate == Decimal("0.85432")
 
     @pytest.mark.asyncio
     async def test_get_exchange_rate_api_error(self, openexchange_provider):

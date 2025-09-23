@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, UTC
 import logging
 from dataclasses import dataclass
+from decimal import Decimal
 
 from providers.base import APIProvider, APICallResult
 from services.circuit_breaker import CircuitBreaker, CircuitBreakerError
@@ -18,7 +19,7 @@ class AggregatedRateResult:
     """Final result from aggregation process"""
     base_currency: str
     target_currency: str
-    rate: float
+    rate: Decimal
     confidence_level: str
     sources_used: List[str]
     is_primary_used: bool
@@ -172,7 +173,7 @@ class RateAggregatorService:
 
                 # Calculate variance for monitoring
                 all_rates = [primary_rate] + secondary_rates
-                avg_rate = sum(all_rates) / len(all_rates)
+                avg_rate = Decimal(sum(all_rates) / len(all_rates))
                 max_deviation = max([abs(rate - avg_rate) for rate in all_rates])
 
                 logger.info(f"Rate comparison {base}->{target}: Primary({self.primary_provider}): {primary_rate}, "
@@ -220,7 +221,7 @@ class RateAggregatorService:
                 final_rate = rates[0]
                 confidence_level = "medium"
             else:
-                final_rate = sum(rates) / len(rates)
+                final_rate = Decimal(sum(rates) / len(rates))
                 confidence_level = "medium"
 
             warnings = [f"Primary provider {self.primary_provider} unavailable"]
@@ -289,7 +290,7 @@ class RateAggregatorService:
                 if latest_rate:
                     age_minutes = int((datetime.now(tz=UTC) - latest_rate.fetched_at).total_seconds() / 60)
                     return {
-                        "rate": float(latest_rate.rate),
+                        "rate": Decimal(latest_rate.rate),
                         "timestamp": latest_rate.fetched_at.isoformat(),
                         "sources_used": [latest_rate.provider.name],
                         "confidence_level": "low",
@@ -305,7 +306,7 @@ class RateAggregatorService:
         """Update Redis cache with aggregated result"""
         if not result.cached:  # Don't re-cache cached results
             cache_data = {
-                "rate": result.rate,
+                "rate": str(result.rate),
                 "confidence_level": result.confidence_level,
                 "sources_used": result.sources_used,
                 "is_primary_used": result.is_primary_used,
