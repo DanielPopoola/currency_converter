@@ -3,9 +3,9 @@ from datetime import datetime, UTC
 from typing import Any, Awaitable, Callable
 
 
-from cache.redis_manager import RedisManager, CircuitBreakerState
-from database.models import CircuitBreakerLog
-from config.database import DatabaseManager
+from app.cache.redis_manager import RedisManager, CircuitBreakerState
+from app.database.models import CircuitBreakerLog
+from app.config.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ import os
 from typing import Generator
 from contextlib import contextmanager
 
-from database.models import APIProvider, Base, CurrencyPair
+from app.database.models import APIProvider, Base, CurrencyPair
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool

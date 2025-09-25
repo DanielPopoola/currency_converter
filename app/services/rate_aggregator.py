@@ -5,11 +5,11 @@ import logging
 from dataclasses import dataclass
 from decimal import Decimal
 
-from providers.base import APIProvider, APICallResult
-from services.circuit_breaker import CircuitBreaker, CircuitBreakerError
-from cache.redis_manager import RedisManager
-from config.database import DatabaseManager
-from database.models import APIProvider as APIProviderModel, ExchangeRate, APICallLog
+from app.providers.base import APIProvider, APICallResult
+from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerError
+from app.cache.redis_manager import RedisManager
+from app.config.database import DatabaseManager
+from app.database.models import APIProvider as APIProviderModel, ExchangeRate, APICallLog
 
 logger = logging.getLogger(__name__)
 

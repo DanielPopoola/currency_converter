@@ -9,7 +9,7 @@ from decimal import Decimal
 import urllib.parse
 import httpx
 
-from app.providers import CurrencyAPIProvider, ExchangeRateResponse, APICallResult
+from app.providers import CurrencyAPIProvider, ExchangeRateResponse
 from .fixtures.api_responses import CURRENCYAPI_RESPONSES
 from .conftest import assert_exchange_rate_response, assert_api_call_result, currencyapi_provider
 
