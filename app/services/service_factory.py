@@ -53,7 +53,7 @@ class ServiceFactory:
 
         # Step 3: Create circuit breakers for each provider
         self.circuit_breakers = {}
-        for provider_name, provider in self.providers.items():
+        for provider_name, _ in self.providers.items():
             provider_id = provider_ids.get(provider_name, 1)  # Fallback ID
             
             circuit_breaker = CircuitBreaker(
@@ -86,7 +86,6 @@ class ServiceFactory:
             with self.db_manager.get_session() as session:
                 providers = session.query(APIProviderModel).all()
                 return {provider.name: provider.id for provider in providers}
-        
         except Exception as e:
             logger.error(f"Failed to get provider IDs: {e}")
             return {}
