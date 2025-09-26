@@ -116,8 +116,7 @@ class CircuitBreaker:
     async def _should_attempt_reset(self):
         """Check if enough time has passed to attempt circuit reset"""
         try:
-            last_failure_key = self.redis_manager._get_circuit_breaker_key(self.provider_id, "last_failure")
-            last_failure_value = self.redis_manager.redis_client.get(last_failure_key)
+            last_failure_value = await self.redis_manager.get_last_failure_time(self.provider_id)
             
             if not last_failure_value:
                 return True
