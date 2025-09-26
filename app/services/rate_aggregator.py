@@ -290,7 +290,7 @@ class RateAggregatorService:
                 if latest_rate:
                     age_minutes = int((datetime.now(tz=UTC) - latest_rate.fetched_at).total_seconds() / 60)
                     return {
-                        "rate": Decimal(latest_rate.rate),
+                        "rate": latest_rate.rate,
                         "timestamp": latest_rate.fetched_at.isoformat(),
                         "sources_used": [latest_rate.provider.name],
                         "confidence_level": "low",
