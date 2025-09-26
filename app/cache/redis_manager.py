@@ -99,7 +99,7 @@ class RedisManager:
             return CircuitBreakerState.CLOSED
     
     async def set_circuit_breaker_state(self, provider_id: int, state: CircuitBreakerState,
-                                        failure_count: int = 0, reason: str = None) -> bool:
+                                        failure_count: int = 0, reason: str = "") -> bool:
         """Update circuit breaker state in Redis (fast) and log to PostgreSQL (persistent)"""
         try:
             state_key = self._get_circuit_breaker_key(provider_id, "state")
@@ -134,7 +134,7 @@ class RedisManager:
             logger.error(f"Failed to get failure count for provider {provider_id}: {e}")
             return 0
         
-    async def increment_failure_count(self, provider_id: int):
+    async def increment_failure_count(self, provider_id: int) -> int:
         """Increment failure count and return new count"""
         try:
             failures_key = self._get_circuit_breaker_key(provider_id, "failures")
