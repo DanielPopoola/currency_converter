@@ -159,6 +159,15 @@ class RedisManager:
         except Exception as e:
             logger.error(f"Failed to reset failure count for provider {provider_id}: {e}")
             return False
+
+    async def get_last_failure_time(self, provider_id: int) -> str | None:
+        """Get the timestamp of the last recorded failure."""
+        try:
+            last_failure_key = self._get_circuit_breaker_key(provider_id, "last_failure")
+            return await self.redis_client.get(last_failure_key)
+        except Exception as e:
+            logger.error(f"Failed to get last failure time for provider {provider_id}: {e}")
+            return None
         
     # Utility methods
 
