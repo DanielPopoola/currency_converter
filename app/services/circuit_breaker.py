@@ -79,7 +79,7 @@ class CircuitBreaker:
         """Handle successful API call"""
         current_state = await self.redis_manager.get_circuit_breaker_state(self.provider_id)
 
-        if current_state == CircuitBreakerState.OPEN:
+        if current_state == CircuitBreakerState.HALF_OPEN:
             self._consecutive_successes += 1
 
             if self._consecutive_successes >= self.success_threshold:
@@ -92,6 +92,7 @@ class CircuitBreaker:
         elif current_state == CircuitBreakerState.CLOSED:
             # Reset failure count on successful call in normal operation
             await self.redis_manager.reset_failure_count(self.provider_id)
+            
 
     async def _on_failure(self):
         """Handle failed API call"""
