@@ -4,7 +4,7 @@ from datetime import datetime, UTC
 from enum import Enum
 from typing import Any
 
-import redis
+from redis import asyncio as redis
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class RedisManager:
             }
 
             # Store with TTL
-            result = self.redis_client.setex(
+            result = await self.redis_client.setex(
                 cache_key,
                 self.RATE_CACHE_TTL,
                 json.dumps(cache_data)
@@ -67,7 +67,7 @@ class RedisManager:
         """Retrieve cached rate - TTL handles expiry automatically"""
         try:
             cache_key = self._get_rate_cache_key(base, target)
-            cached_data = self.redis_client.get(cache_key)
+            cached_data = await self.redis_client.get(cache_key)
 
             if cached_data:
                 rate_data = json.loads(cached_data)
@@ -87,7 +87,7 @@ class RedisManager:
         """Get current circuit breaker state from Redis"""
         try:
             state_key = self._get_circuit_breaker_key(provider_id, "state")
-            state_value = self.redis_client.get(state_key)
+            state_value = await self.redis_client.get(state_key)
 
             if state_value:
                 return CircuitBreakerState(state_value)
@@ -107,14 +107,14 @@ class RedisManager:
             last_failure_key = self._get_circuit_breaker_key(provider_id, "last_failure")
 
             # Update Redis
-            pipeline = self.redis_client.pipeline()
-            pipeline.setex(state_key, self.CIRCUIT_BREAKER_TTL, state.value)
-            pipeline.setex(failures_key, self.CIRCUIT_BREAKER_TTL, failure_count)
+            async with self.redis_client.pipeline() as pipeline:
+                await pipeline.setex(state_key, self.CIRCUIT_BREAKER_TTL, state.value)
+                await pipeline.setex(failures_key, self.CIRCUIT_BREAKER_TTL, failure_count)
 
-            if state == CircuitBreakerState.OPEN:
-                pipeline.setex(last_failure_key, self.CIRCUIT_BREAKER_TTL, datetime.now(tz=UTC).isoformat())
+                if state == CircuitBreakerState.OPEN:
+                    await pipeline.setex(last_failure_key, self.CIRCUIT_BREAKER_TTL, datetime.now(tz=UTC).isoformat())
 
-            pipeline.execute()
+                await pipeline.execute()
 
             logger.info(f"Circuit breaker {provider_id}: {state.value} (failures: {failure_count})")
             return True
@@ -127,7 +127,7 @@ class RedisManager:
         """Get current failure count for circuit breaker logic"""
         try:
             failures_key = self._get_circuit_breaker_key(provider_id, "failures")
-            count = self.redis_client.get(failures_key)
+            count = await self.redis_client.get(failures_key)
             return int(count) if count else 0
             
         except Exception as e:
@@ -138,8 +138,8 @@ class RedisManager:
         """Increment failure count and return new count"""
         try:
             failures_key = self._get_circuit_breaker_key(provider_id, "failures")
-            new_count = self.redis_client.incr(failures_key)
-            self.redis_client.expire(failures_key, self.CIRCUIT_BREAKER_TTL)
+            new_count = await self.redis_client.incr(failures_key)
+            await self.redis_client.expire(failures_key, self.CIRCUIT_BREAKER_TTL)
             
             logger.debug(f"Provider {provider_id} failure count: {new_count}")
             return new_count
@@ -151,7 +151,7 @@ class RedisManager:
         """Reset failure count (on successful recovery)"""
         try:
             failures_key = self._get_circuit_breaker_key(provider_id, "failures")
-            self.redis_client.delete(failures_key)
+            await self.redis_client.delete(failures_key)
             
             logger.debug(f"Reset failure count for provider {provider_id}")
             return True
@@ -166,7 +166,7 @@ class RedisManager:
         """Check Redis connection health"""
         try:
             start_time = datetime.now(tz=UTC)
-            self.redis_client.ping()
+            await self.redis_client.ping()
             response_time = (datetime.now(tz=UTC) - start_time).total_seconds() * 1000
             
             return {
@@ -182,9 +182,9 @@ class RedisManager:
     async def clear_cache_pattern(self, pattern: str):
         """Clear cache keys matching pattern (for debugging)"""
         try:
-            keys = self.redis_client.keys(pattern)
+            keys = await self.redis_client.keys(pattern)
             if keys:
-                deleted = self.redis_client.delete(*keys)
+                deleted = await self.redis_client.delete(*keys)
                 logger.info(f"Cleared {deleted} cache keys matching {pattern}")
                 return deleted
             return 0
