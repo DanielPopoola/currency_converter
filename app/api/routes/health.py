@@ -155,7 +155,7 @@ async def providers_health_check(
             detail="Unable to check provider health"
         )
     
-def _determin_overall_health(services: Dict[str, Any]) -> str:
+def _determine_overall_health(services: Dict[str, Any]) -> str:
     """
     Determine overall system health based on individual service statuses.
     

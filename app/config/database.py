@@ -130,19 +130,19 @@ class DatabaseManager:
                 # Seed API providers
                 providers_data = [
                     {
-                        "name": "fixer.io",
+                        "name": "FixerIO",
                         "base_url": "http://data.fixer.io/api/",
                         "is_primary": True,
                         "priority_order": 1
                     },
                     {
-                        "name": "openexchange",
+                        "name": "OpenExchange",
                         "base_url": "https://openexchangerates.org/api/",
                         "is_primary": False,
                         "priority_order": 2
                     },
                     {
-                        "name": "currencyapi",
+                        "name": "CurrencyAPI",
                         "base_url": "https://api.currencyapi.com/v3/",
                         "is_primary": False,
                         "priority_order": 3
