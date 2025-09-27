@@ -92,15 +92,18 @@ class FixerIOProvider(APIProvider):
             'symbols': target
         }
 
+        # _make_request will raise an exception on HTTP failure
         result = await self._make_request('latest', params)
 
-        if result.was_successful and result.raw_response:
-            # Parse the response into standardized format
-            parsed_response = self._parse_rate_response(result.raw_response, base, target)
-            result.data = parsed_response
-            result.was_successful = parsed_response.is_successful
-            if not parsed_response.is_successful:
-                result.error_message = parsed_response.error_message
+        # If we get here, the HTTP call was successful. Now, parse the payload.
+        parsed_response = self._parse_rate_response(result.raw_response, base, target)
+        result.data = parsed_response
+        
+        # The API can return a "successful" response that contains an error message (e.g. invalid currency)
+        # We update the result's success status based on the parsed payload.
+        result.was_successful = parsed_response.is_successful
+        if not parsed_response.is_successful:
+            result.error_message = parsed_response.error_message
 
         return result
     
@@ -109,53 +112,50 @@ class FixerIOProvider(APIProvider):
         params = {'base': base}
         result = await self._make_request('latest', params)
 
-        if result.was_successful and result.raw_response:
-            try:
-                rates_data = result.raw_response.get('rates', {})
-                if not rates_data:
-                    result.was_successful = False
-                    result.error_message = "No rate found in response"
-                    return result
-                
-
-                api_timestamp = result.raw_response.get('timestamp')
-                timestamp = datetime.fromtimestamp(api_timestamp) if api_timestamp else datetime.now()
-
-                responses = []
-                for target, rate in rates_data.items():
-                        responses.append(
-                            ExchangeRateResponse(
-                                base_currency=base,
-                                target_currency=target,
-                                rate=Decimal(str(rate)),
-                                timestamp=timestamp,
-                                provider_name=self.name,
-                                raw_response=result.raw_response,
-                                is_successful=True
-                            )
-                        )
-                
-                result.data = responses
-            except Exception as e:
+        try:
+            rates_data = result.raw_response.get('rates', {})
+            if not rates_data:
                 result.was_successful = False
-                result.error_message = f"Failed to process rates: {str(e)}"
-    
+                result.error_message = "No rate found in response"
+                return result
+            
+            api_timestamp = result.raw_response.get('timestamp')
+            timestamp = datetime.fromtimestamp(api_timestamp) if api_timestamp else datetime.now()
+
+            responses = []
+            for target, rate in rates_data.items():
+                    responses.append(
+                        ExchangeRateResponse(
+                            base_currency=base,
+                            target_currency=target,
+                            rate=Decimal(str(rate)),
+                            timestamp=timestamp,
+                            provider_name=self.name,
+                            raw_response=result.raw_response,
+                            is_successful=True
+                        )
+                    )
+            
+            result.data = responses
+        except Exception as e:
+            result.was_successful = False
+            result.error_message = f"Failed to process rates: {str(e)}"
+
         return result
     
     async def get_supported_currencies(self) -> APICallResult:
         """Get supported currencies from Fixer.io"""
         result = await self._make_request('symbols', {})
 
-        if result.was_successful and result.raw_response:
-            try:
-                symbols = result.raw_response.get('symbols', {})
-                if not symbols:
-                    result.was_successful = False
-                    result.error_message = "No symbols found in response"
-                else:
-                    result.data = list(symbols.keys())
-            except Exception as e:
+        try:
+            symbols = result.raw_response.get('symbols', {})
+            if not symbols:
                 result.was_successful = False
-                result.error_message = f"Failed to process symbols: {str(e)}"
+                result.error_message = "No symbols found in response"
+            else:
+                result.data = list(symbols.keys())
+        except Exception as e:
+            result.was_successful = False
+            result.error_message = f"Failed to process symbols: {str(e)}"
         
         return result
