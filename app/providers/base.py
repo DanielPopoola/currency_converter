@@ -40,15 +40,19 @@ class APICallResult:
 class APIProvider(ABC):
     """Abstract base class for all currency API providers"""
 
-    def __init__(self, api_key: str, base_url: str, name: str, timeout: int = 3):
+    def __init__(self, api_key: str, base_url: str, name: str, timeout: int = 3, extra_headers: dict = None):
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
         self.name = name
         self.timeout = timeout
 
+        headers = {"accept": "application/json"}
+        if extra_headers:
+            headers.update(extra_headers)
+
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout),
-            headers={"accept": "application/json"},
+            headers=headers,
             limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
         )
 
@@ -84,74 +88,34 @@ class APIProvider(ABC):
         logger.info(f"Fetching data from URL: {url}")
 
         try:
-            logger.debug(f"Calling {self.name} API: {endpoint}")
-
             response = await self.client.get(url)
-            response_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+            response.raise_for_status()  # Raises HTTPStatusError for 4xx/5xx responses
 
-            if response.status_code == 200:
-                return APICallResult(
-                    provider_name=self.name,
-                    endpoint=endpoint,
-                    http_status_code=response.status_code,
-                    response_time_ms=response_time_ms,
-                    was_successful=True,
-                    raw_response=response.json()
-                )
-            else:
-                error_msg = f"HTTP {response.status_code}: {response.text[:200]}"
-                logger.warning(f"{self.name} API error: {error_msg}")
-                
-                return APICallResult(
-                    provider_name=self.name,
-                    endpoint=endpoint,
-                    http_status_code=response.status_code,
-                    response_time_ms=response_time_ms,
-                    was_successful=False,
-                    error_message=error_msg
-                )
-                
-        except httpx.TimeoutException:
             response_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
-            error_msg = f"Timeout after {self.timeout}s"
-            logger.warning(f"{self.name} API timeout: {error_msg}")
 
             return APICallResult(
                 provider_name=self.name,
                 endpoint=endpoint,
-                http_status_code=None,
+                http_status_code=response.status_code,
                 response_time_ms=response_time_ms,
-                was_successful=False,
-                error_message=error_msg
+                was_successful=True,
+                raw_response=response.json()
             )
-            
+
+        except httpx.TimeoutException as e:
+            logger.warning(f"{self.name} API timeout after {self.timeout}s")
+            # Re-raise the exception so the circuit breaker can catch it
+            raise e
+
         except httpx.HTTPStatusError as e:
-            response_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
-            error_msg = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
-            logger.warning(f"{self.name} API error: {error_msg}")
+            logger.warning(f"{self.name} API error: HTTP {e.response.status_code}: {e.response.text[:200]}")
+            # Re-raise the exception so the circuit breaker can catch it
+            raise e
 
-            return APICallResult(
-                provider_name=self.name,
-                endpoint=endpoint,
-                http_status_code=e.response.status_code,
-                response_time_ms=response_time_ms,
-                was_successful=False,
-                error_message=error_msg
-            )
-            
         except Exception as e:
-            response_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
-            error_msg = f"Network error: {str(e)}"
-            logger.error(f"{self.name} API error: {error_msg}")
-            
-            return APICallResult(
-                provider_name=self.name,
-                endpoint=endpoint,
-                http_status_code=None,
-                response_time_ms=response_time_ms,
-                was_successful=False,
-                error_message=error_msg
-            )
+            logger.error(f"{self.name} API network error: {str(e)}")
+            # Re-raise the exception so the circuit breaker can catch it
+            raise e
 
     async def close(self):
         """Clean up HTTP client"""
