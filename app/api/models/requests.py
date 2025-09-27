@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ValidationInfo
 from decimal import Decimal
-from typing import Optional
 
 
 class ConvertRequest(BaseModel):
@@ -23,10 +22,9 @@ class ConvertRequest(BaseModel):
 
     @field_validator('to_currency')
     @classmethod
-    def currencies_must_be_different(cls, v, values):
-        if 'from_currency' in values and v  == values['from_currency']:
+    def currencies_must_be_different(cls, v: str, info: ValidationInfo):
+        if info.data and 'from_currency' in info.data and v == info.data['from_currency']:
             raise ValueError('from_currency and to_currency must be different')
-        
         return v
     
     class Config:
@@ -51,8 +49,8 @@ class ExchangeRateRequest(BaseModel):
     
     @field_validator('to_currency')
     @classmethod
-    def currencies_must_be_different(cls, v, values):
-        if 'from_currency' in values and v == values['from_currency']:
+    def currencies_must_be_different(cls, v: str, info: ValidationInfo):
+        if info.data and 'from_currency' in info.data and v == info.data['from_currency']:
             raise ValueError('from_currency and to_currency must be different')
         return v
 
