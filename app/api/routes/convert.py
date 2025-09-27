@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from decimal import Decimal
 import logging
-from datetime import datetime, UTC
 
 from app.api.dependencies import get_rate_aggregator
 from app.api.models.requests import ConvertRequest
@@ -12,7 +11,7 @@ from app.services.rate_aggregator import RateAggregatorService
 logger = logging.getLogger(__name__)
 
 
-router = APIRouter(prefix="api/v1/", tags=["conversion"])
+router = APIRouter(prefix="/api/v1", tags=["conversion"])
 
 
 @router.post(
