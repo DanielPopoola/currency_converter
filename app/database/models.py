@@ -74,7 +74,7 @@ class ExchangeRate(Base):
 
     # Relationships
     currency_pair = relationship("CurrencyPair", back_populates="exchange_rates")
-    provider = relationship("APIProvider", back_populates="api_providers")
+    provider = relationship("APIProvider", back_populates="exchange_rates")
 
     __table_args__  = (
         {"sqlite_autoincrement": True},
