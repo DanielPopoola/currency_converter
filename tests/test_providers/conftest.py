@@ -2,6 +2,7 @@
 Shared test configuration and fixtures for provider tests.
 """
 
+import os
 import pytest
 import httpx
 from unittest.mock import AsyncMock, patch
@@ -23,29 +24,31 @@ TEST_TIMEOUT = 3
 @pytest.fixture
 def mock_env_vars():
     """Mock environment variables for testing"""
-    with patch.dict('os.environ', {
-        'FIXERIO_API_KEY': TEST_API_KEY,
-        'OPENEXCHANGE_APP_ID': TEST_API_KEY,
-        'CURRENCYAPI_KEY': TEST_API_KEY
-    }):
+    with patch.dict(os.environ, {
+        "FIXERIO_API_KEY": TEST_API_KEY,
+        "OPENEXCHANGE_APP_ID": TEST_API_KEY,
+        "CURRENCYAPI_KEY": TEST_API_KEY,
+    }, clear=True):
         yield
+
 
 @pytest.fixture
 def fixerio_provider(mock_env_vars):
     """Create FixerIO provider instance for testing"""
-    return FixerIOProvider(mock_env_vars)
+    return FixerIOProvider(api_key=os.getenv("FIXERIO_API_KEY"))
 
 
 @pytest.fixture
 def openexchange_provider(mock_env_vars):
     """Create OpenExchange provider instance for testing"""
-    return OpenExchangeProvider(mock_env_vars)
+    return OpenExchangeProvider(api_key=os.getenv("OPENEXCHANGE_APP_ID"))
 
 
 @pytest.fixture
 def currencyapi_provider(mock_env_vars):
     """Create CurrencyAPI provider instance for testing"""
-    return CurrencyAPIProvider(mock_env_vars)
+    return CurrencyAPIProvider(api_key=os.getenv("CURRENCYAPI_KEY"))
+
 
 @pytest.fixture
 def all_providers(fixerio_provider, openexchange_provider, currencyapi_provider):

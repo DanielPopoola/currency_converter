@@ -64,12 +64,12 @@ class RateAggregatorService:
         cached_rate = await self._check_cache(base, target)
         if cached_rate:
             response_time_ms = int((datetime.now(tz=UTC) - start_time).total_seconds() * 1000)
-            logger.debug(f"Cache hit for {base}->{target}: {cached_rate['rate']}")
+            logger.info(f"Cache hit for {base}->{target}: {cached_rate['rate']}")
 
             return AggregatedRateResult(
                 base_currency=base,
                 target_currency=target,
-                rate=cached_rate["rate"],
+                rate=Decimal(cached_rate["rate"]),
                 confidence_level=cached_rate["confidence_level"],
                 sources_used=cached_rate["sources_used"],
                 is_primary_used=cached_rate["is_primary_used"],
