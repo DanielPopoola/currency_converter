@@ -4,7 +4,8 @@ Tests both the provider-specific logic and integration with the base class.
 """
 import os
 import pytest
-from unittest.mock import patch, Mock
+import httpx
+from unittest.mock import patch, Mock, AsyncMock
 from datetime import datetime, UTC
 import urllib.parse
 from decimal import Decimal
@@ -175,7 +176,7 @@ class TestFixerIOGetExchangeRate:
     @pytest.mark.asyncio
     async def test_get_exchange_rate_success(self, fixerio_provider):
         """Test successful single rate retrieval"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = FIXERIO_RESPONSES["single_rate_success"]
         
@@ -191,7 +192,7 @@ class TestFixerIOGetExchangeRate:
     @pytest.mark.asyncio
     async def test_get_exchange_rate_api_error(self, fixerio_provider):
         """Test handling FixerIO API errors"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = FIXERIO_RESPONSES["api_error"]
         
@@ -208,21 +209,24 @@ class TestFixerIOGetExchangeRate:
     @pytest.mark.asyncio
     async def test_get_exchange_rate_http_error(self, fixerio_provider):
         """Test handling HTTP errors"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 401
         mock_response.text = "Unauthorized"
-        
+        error = httpx.HTTPStatusError(
+            "Unauthorized", request=Mock(), response=mock_response
+        )
+        mock_response.raise_for_status.side_effect = error
+
         with patch.object(fixerio_provider.client, 'get', return_value=mock_response):
-            result = await fixerio_provider.get_exchange_rate("USD", "EUR")
+            with pytest.raises(httpx.HTTPStatusError) as excinfo:
+                await fixerio_provider.get_exchange_rate("USD", "EUR")
             
-            assert_api_call_result(result, expected_success=False)
-            assert result.http_status_code == 401
-            assert "HTTP 401" in result.error_message
+            assert excinfo.value.response.status_code == 401
     
     @pytest.mark.asyncio
     async def test_get_exchange_rate_request_parameters(self, fixerio_provider):
         """Test that correct parameters are sent to API"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = FIXERIO_RESPONSES["single_rate_success"]
         
@@ -245,7 +249,7 @@ class TestFixerIOGetAllRates:
     @pytest.mark.asyncio
     async def test_get_all_rates_success(self, fixerio_provider):
         """Test successful retrieval of all rates"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = FIXERIO_RESPONSES["all_rates_success"]
         
@@ -272,7 +276,7 @@ class TestFixerIOGetAllRates:
             "rates": {}  # Empty rates
         }
         
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = empty_response
         
@@ -293,7 +297,7 @@ class TestFixerIOGetAllRates:
             "rates": {"EUR": 0.85}
         }
         
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = malformed_response
         
@@ -310,7 +314,7 @@ class TestFixerIOGetSupportedCurrencies:
     @pytest.mark.asyncio
     async def test_get_supported_currencies_success(self, fixerio_provider):
         """Test successful retrieval of supported currencies"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = FIXERIO_RESPONSES["currencies_success"]
         
@@ -332,7 +336,7 @@ class TestFixerIOGetSupportedCurrencies:
             "symbols": {}
         }
         
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = empty_response
         
@@ -351,7 +355,7 @@ class TestFixerIOGetSupportedCurrencies:
             "symbols": "not_a_dict"  # Should be a dict
         }
         
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = malformed_response
         
@@ -374,7 +378,7 @@ class TestFixerIOIntegration:
         # 3. Parse response
         # 4. Return standardized result
         
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = FIXERIO_RESPONSES["single_rate_success"]
         
@@ -414,7 +418,7 @@ class TestFixerIOParametrized:
             "rates": {target: 1.23456}
         }
         
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = response_data
         
@@ -437,7 +441,7 @@ class TestFixerIOParametrized:
             "rates": {"EUR": 0.85, "USD": 1.17, "GBP": 0.79}
         }
         
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = response_data
         
@@ -464,7 +468,7 @@ class TestFixerIOEdgeCases:
             "rates": {"JPY": 149.756789123}  # Large rate value
         }
         
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = response_data
         
@@ -484,7 +488,7 @@ class TestFixerIOEdgeCases:
             "rates": {"SOME_CRYPTO": 0.00000123}  # Very small rate
         }
         
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = response_data
         

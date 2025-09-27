@@ -4,7 +4,8 @@ Tests for the OpenExchange provider implementation.
 """
 import os
 import pytest
-from unittest.mock import patch, Mock
+import httpx
+from unittest.mock import patch, Mock, AsyncMock
 from datetime import datetime, UTC
 from decimal import Decimal
 import urllib.parse
@@ -68,7 +69,7 @@ class TestOpenExchangeGetExchangeRate:
     @pytest.mark.asyncio
     async def test_get_exchange_rate_success(self, openexchange_provider):
         """Test successful single rate retrieval"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = OPENEXCHANGE_RESPONSES["single_rate_success"]
 
@@ -84,7 +85,7 @@ class TestOpenExchangeGetExchangeRate:
     @pytest.mark.asyncio
     async def test_get_exchange_rate_api_error(self, openexchange_provider):
         """Test handling OpenExchange API errors"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = OPENEXCHANGE_RESPONSES["api_error"]
 
@@ -103,7 +104,7 @@ class TestOpenExchangeGetAllRates:
     @pytest.mark.asyncio
     async def test_get_all_rates_success(self, openexchange_provider):
         """Test successful retrieval of all rates"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = OPENEXCHANGE_RESPONSES["all_rates_success"]
 
@@ -125,7 +126,7 @@ class TestOpenExchangeGetSupportedCurrencies:
     @pytest.mark.asyncio
     async def test_get_supported_currencies_success(self, openexchange_provider):
         """Test successful retrieval of supported currencies"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = OPENEXCHANGE_RESPONSES["currencies_success"]
 

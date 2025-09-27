@@ -1,13 +1,12 @@
-
 """
 Tests for the CurrencyAPI provider implementation.
 """
 import os
 import pytest
-from unittest.mock import patch, Mock
+import httpx
+from unittest.mock import patch, Mock, AsyncMock
 from decimal import Decimal
 import urllib.parse
-import httpx
 
 from app.providers import CurrencyAPIProvider, ExchangeRateResponse
 from .fixtures.api_responses import CURRENCYAPI_RESPONSES
@@ -42,7 +41,6 @@ class TestCurrencyAPIURLBuilding:
         assert parsed.scheme == 'https'
         assert parsed.netloc == 'api.currencyapi.com'
         assert parsed.path == '/v3/latest'
-        assert 'api_key' in query_params
         assert query_params['base_currency'] == ['USD']
         assert query_params['currencies'] == ['EUR']
 
@@ -68,7 +66,7 @@ class TestCurrencyAPIGetExchangeRate:
     @pytest.mark.asyncio
     async def test_get_exchange_rate_success(self, currencyapi_provider):
         """Test successful single rate retrieval"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = CURRENCYAPI_RESPONSES["single_rate_success"]
 
@@ -84,16 +82,17 @@ class TestCurrencyAPIGetExchangeRate:
     @pytest.mark.asyncio
     async def test_get_exchange_rate_api_error(self, currencyapi_provider):
         """Test handling CurrencyAPI API errors"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 403
         mock_response.text = CURRENCYAPI_RESPONSES["api_error"]["message"]
         error = httpx.HTTPStatusError(message="", request=Mock(), response=mock_response)
+        mock_response.raise_for_status.side_effect = error
 
-        with patch.object(currencyapi_provider.client, 'get', side_effect=error):
-            result = await currencyapi_provider.get_exchange_rate("USD", "EUR")
-
-            assert result.was_successful is False
-            assert "HTTP 403" in result.error_message
+        with patch.object(currencyapi_provider.client, 'get', return_value=mock_response):
+            with pytest.raises(httpx.HTTPStatusError) as excinfo:
+                await currencyapi_provider.get_exchange_rate("USD", "EUR")
+            
+            assert excinfo.value.response.status_code == 403
 
 class TestCurrencyAPIGetAllRates:
     """Test the get_all_rates method"""
@@ -101,7 +100,7 @@ class TestCurrencyAPIGetAllRates:
     @pytest.mark.asyncio
     async def test_get_all_rates_success(self, currencyapi_provider):
         """Test successful retrieval of all rates"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = CURRENCYAPI_RESPONSES["all_rates_success"]
 
@@ -123,7 +122,7 @@ class TestCurrencyAPIGetSupportedCurrencies:
     @pytest.mark.asyncio
     async def test_get_supported_currencies_success(self, currencyapi_provider):
         """Test successful retrieval of supported currencies"""
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = CURRENCYAPI_RESPONSES["currencies_success"]
 

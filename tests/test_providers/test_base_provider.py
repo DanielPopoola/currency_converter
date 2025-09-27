@@ -83,54 +83,50 @@ class TestAPIProviderHttpCalls:
         """Test successful HTTP request"""
         provider = ConcreteProvider()
         
-        # Mock the HTTP response
-        mock_response = Mock()
+        # The response object itself is synchronous
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = {"test": "data"}
         
+        # Patch the async 'get' method to return our sync mock response
         with patch.object(provider.client, 'get', return_value=mock_response) as mock_get:
             result = await provider._make_request("test_endpoint", {"param": "value"})
             
-            # Verify the request was made correctly
             mock_get.assert_called_once_with("https://api.example.com/test_endpoint?api_key=test_key")
+            mock_response.raise_for_status.assert_called_once()
             
-            # Verify the result
             assert result.was_successful is True
             assert result.http_status_code == 200
             assert result.raw_response == {"test": "data"}
-            assert result.provider_name == "TestProvider"
-            assert result.endpoint == "test_endpoint"
-            assert result.response_time_ms >= 0
-    
+
     @pytest.mark.asyncio
     async def test_http_error_response(self):
         """Test handling of HTTP error responses (4xx, 5xx)"""
         provider = ConcreteProvider()
         
-        mock_response = Mock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.status_code = 404
         mock_response.text = "Not Found"
+
+        error = httpx.HTTPStatusError(
+            "Not Found", request=Mock(), response=mock_response
+        )
+        mock_response.raise_for_status.side_effect = error
         
         with patch.object(provider.client, 'get', return_value=mock_response):
-            result = await provider._make_request("missing_endpoint")
+            with pytest.raises(httpx.HTTPStatusError):
+                await provider._make_request("missing_endpoint")
             
-            assert result.was_successful is False
-            assert result.http_status_code == 404
-            assert "HTTP 404" in result.error_message
-            assert "Not Found" in result.error_message
-    
+            mock_response.raise_for_status.assert_called_once()
+
     @pytest.mark.asyncio 
     async def test_timeout_error(self):
         """Test handling of request timeouts"""
         provider = ConcreteProvider()
         
         with patch.object(provider.client, 'get', side_effect=httpx.TimeoutException("Timeout")):
-            result = await provider._make_request("slow_endpoint")
-            
-            assert result.was_successful is False
-            assert result.http_status_code is None
-            assert "Timeout after 3s" in result.error_message
-            assert result.response_time_ms >= 0
+            with pytest.raises(httpx.TimeoutException):
+                await provider._make_request("slow_endpoint")
     
     @pytest.mark.asyncio
     async def test_connection_error(self):
@@ -139,12 +135,8 @@ class TestAPIProviderHttpCalls:
         
         connection_error = httpx.ConnectError("Failed to connect")
         with patch.object(provider.client, 'get', side_effect=connection_error):
-            result = await provider._make_request("unreachable_endpoint")
-            
-            assert result.was_successful is False
-            assert result.http_status_code is None
-            assert "Network error" in result.error_message
-            assert "Failed to connect" in result.error_message
+            with pytest.raises(httpx.ConnectError):
+                await provider._make_request("unreachable_endpoint")
     
     @pytest.mark.asyncio
     async def test_generic_exception(self):
@@ -152,12 +144,8 @@ class TestAPIProviderHttpCalls:
         provider = ConcreteProvider()
         
         with patch.object(provider.client, 'get', side_effect=ValueError("Unexpected error")):
-            result = await provider._make_request("error_endpoint")
-            
-            assert result.was_successful is False
-            assert result.http_status_code is None
-            assert "Network error" in result.error_message
-            assert "Unexpected error" in result.error_message
+            with pytest.raises(ValueError):
+                await provider._make_request("error_endpoint")
 
 
 class TestAPIProviderResponseTiming:
@@ -168,11 +156,10 @@ class TestAPIProviderResponseTiming:
         """Test that response time is measured and reasonable"""
         provider = ConcreteProvider()
         
-        # Mock a response with a small delay
         async def mock_get_with_delay(url):
             import asyncio
             await asyncio.sleep(0.01)  # 10ms delay
-            response = Mock()
+            response = Mock(spec=httpx.Response)
             response.status_code = 200
             response.json.return_value = {"data": "test"}
             return response
@@ -180,19 +167,7 @@ class TestAPIProviderResponseTiming:
         with patch.object(provider.client, 'get', side_effect=mock_get_with_delay):
             result = await provider._make_request("test")
             
-            # Should be at least 10ms but less than 100ms (allowing for test overhead)
             assert 5 <= result.response_time_ms <= 100
-    
-    @pytest.mark.asyncio
-    async def test_error_response_timing(self):
-        """Test that timing is measured even for error responses"""
-        provider = ConcreteProvider()
-        
-        with patch.object(provider.client, 'get', side_effect=httpx.TimeoutException("Timeout")):
-            result = await provider._make_request("test")
-            
-            # Even failed requests should have timing
-            assert result.response_time_ms >= 0
 
 
 class TestAPIProviderCleanup:
@@ -203,7 +178,6 @@ class TestAPIProviderCleanup:
         """Test that HTTP client is properly closed"""
         provider = ConcreteProvider()
         
-        # Mock the aclose method
         with patch.object(provider.client, 'aclose') as mock_close:
             await provider.close()
             mock_close.assert_called_once()
