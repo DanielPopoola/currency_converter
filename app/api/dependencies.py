@@ -13,7 +13,7 @@ async def get_rate_aggregator():
     """
     try:
         # Get or create the rate aggregator
-        if service_factory.rate_aggregator is None:
+        if not service_factory.rate_aggregator:
             await service_factory.create_rate_aggregator()
 
         return service_factory.rate_aggregator
