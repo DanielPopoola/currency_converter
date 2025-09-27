@@ -2,6 +2,8 @@ import os
 from typing import Dict
 import logging
 
+from dotenv import load_dotenv
+load_dotenv()
 
 from app.providers import APIProvider, CurrencyAPIProvider, FixerIOProvider, OpenExchangeProvider
 from app.services import CircuitBreaker, RateAggregatorService
