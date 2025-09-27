@@ -18,12 +18,12 @@ class CurrencyAPIProvider(APIProvider):
             api_key=api_key,
             base_url="https://api.currencyapi.com/v3",
             name="CurrencyAPI",
-            timeout=3
+            timeout=3,
+            extra_headers={"apikey": api_key}
         )
 
     def _build_request_url(self, endpoint: str, params: Dict[str, Any]) -> str:
-        """Build CurrencyAPI URL with API key authentication"""
-        params['api_key'] = self.api_key
+        """Build CurrencyAPI URL (authentication is handled by headers)"""
         return f"{self.base_url}/{endpoint}?{urllib.parse.urlencode(params)}"
 
     def _parse_rate_response(self, response_data: dict[str, Any], base: str, target: str) -> ExchangeRateResponse:
@@ -103,13 +103,12 @@ class CurrencyAPIProvider(APIProvider):
 
         result = await self._make_request('latest', params)
 
-        if result.was_successful and result.raw_response:
-            # Parse the response into standardized format
-            parsed_response = self._parse_rate_response(result.raw_response, base, target)
-            result.data = parsed_response
-            result.was_successful = parsed_response.is_successful
-            if not parsed_response.is_successful:
-                result.error_message = parsed_response.error_message
+        # The HTTP call was successful, now parse the payload.
+        parsed_response = self._parse_rate_response(result.raw_response, base, target)
+        result.data = parsed_response
+        result.was_successful = parsed_response.is_successful
+        if not parsed_response.is_successful:
+            result.error_message = parsed_response.error_message
 
         return result
 
@@ -118,41 +117,40 @@ class CurrencyAPIProvider(APIProvider):
         params = {'base_currency': base}
         result = await self._make_request('latest', params)
 
-        if result.was_successful and result.raw_response:
-            try:
-                data = result.raw_response.get("data", {})
-                if not data:
-                    result.was_successful = False
-                    result.error_message = "No rate data found in response"
-                    return result
-
-                # Parse timestamp from meta information
-                meta = result.raw_response.get("meta", {})
-                last_updated = meta.get("last_updated_at")
-                
-                if last_updated:
-                    timestamp = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
-                else:
-                    timestamp = datetime.now(UTC)
-
-                responses = []
-                for target_currency, rate_info in data.items():
-                    responses.append(
-                        ExchangeRateResponse(
-                            base_currency=base,
-                            target_currency=target_currency,
-                            rate=Decimal(str(rate_info["value"])),
-                            timestamp=timestamp,
-                            provider_name=self.name,
-                            raw_response=result.raw_response,
-                            is_successful=True
-                        )
-                    )
-                
-                result.data = responses
-            except Exception as e:
+        try:
+            data = result.raw_response.get("data", {})
+            if not data:
                 result.was_successful = False
-                result.error_message = f"Failed to process rates: {str(e)}"
+                result.error_message = "No rate data found in response"
+                return result
+
+            # Parse timestamp from meta information
+            meta = result.raw_response.get("meta", {})
+            last_updated = meta.get("last_updated_at")
+            
+            if last_updated:
+                timestamp = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
+            else:
+                timestamp = datetime.now(UTC)
+
+            responses = []
+            for target_currency, rate_info in data.items():
+                responses.append(
+                    ExchangeRateResponse(
+                        base_currency=base,
+                        target_currency=target_currency,
+                        rate=Decimal(str(rate_info["value"])),
+                        timestamp=timestamp,
+                        provider_name=self.name,
+                        raw_response=result.raw_response,
+                        is_successful=True
+                    )
+                )
+            
+            result.data = responses
+        except Exception as e:
+            result.was_successful = False
+            result.error_message = f"Failed to process rates: {str(e)}"
     
         return result
 
@@ -160,17 +158,16 @@ class CurrencyAPIProvider(APIProvider):
         """Get supported currencies from CurrencyAPI"""
         result = await self._make_request('currencies', {})
 
-        if result.was_successful and result.raw_response:
-            try:
-                data = result.raw_response.get("data", {})
-                if not data:
-                    result.was_successful = False
-                    result.error_message = "No currency data found in response"
-                else:
-                    # CurrencyAPI returns currencies as {"USD": {"symbol": "$", "name": "US Dollar", "symbol_native": "$", "decimal_digits": 2, "rounding": 0, "code": "USD", "name_plural": "US dollars"}}
-                    result.data = list(data.keys())
-            except Exception as e:
+        try:
+            data = result.raw_response.get("data", {})
+            if not data:
                 result.was_successful = False
-                result.error_message = f"Failed to process currencies: {str(e)}"
+                result.error_message = "No currency data found in response"
+            else:
+                # CurrencyAPI returns currencies as {"USD": {"symbol": "$", "name": "US Dollar", "symbol_native": "$", "decimal_digits": 2, "rounding": 0, "code": "USD", "name_plural": "US dollars"}}
+                result.data = list(data.keys())
+        except Exception as e:
+            result.was_successful = False
+            result.error_message = f"Failed to process currencies: {str(e)}"
         
         return result
