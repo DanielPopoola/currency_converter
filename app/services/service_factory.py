@@ -3,11 +3,11 @@ from typing import Dict
 import logging
 
 
-from providers import APIProvider, CurrencyAPIProvider, FixerIOProvider, OpenExchangeProvider
-from services import CircuitBreaker, RateAggregatorService
-from cache.redis_manager import RedisManager
-from config.database import DatabaseManager
-from database.models import APIProvider as APIProviderModel
+from app.providers import APIProvider, CurrencyAPIProvider, FixerIOProvider, OpenExchangeProvider
+from app.services import CircuitBreaker, RateAggregatorService
+from app.cache.redis_manager import RedisManager
+from app.config.database import DatabaseManager
+from app.database.models import APIProvider as APIProviderModel
 
 
 logger = logging.getLogger(__name__)
