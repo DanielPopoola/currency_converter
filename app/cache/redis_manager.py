@@ -22,15 +22,9 @@ class RedisManager:
         self.RATE_CACHE_TTL = 300
         self.CIRCUIT_BREAKER_TTL = 3600
 
-    def _get_rate_cache_key(self, base: str, target: str, timestamp_bucket: str | None = None) -> str:
-        """Generate cache key for exchange rates with 5-minute bucketing"""
-        if not timestamp_bucket:
-            # Create 5-minute bucket: 2025-09-18T10:35:00 -> 2025-09-18T10:30:00
-            now = datetime.now(tz=UTC)
-            bucket_minutes = (now.minute // 5) * 5
-            timestamp_bucket = now.replace(minute=bucket_minutes, second=0, microsecond=0).strftime("%Y%m%d%H%M%S")
-
-        return f"rates:{base}:{target}:{timestamp_bucket}"
+    def _get_rate_cache_key(self, base: str, target: str) -> str:
+        """Generate a simple cache key for an exchange rate."""
+        return f"rates:{base}:{target}"
     
     def _get_circuit_breaker_key(self, provider_id: int, suffix: str) -> str:
         """Generate circuit breaker keys"""
