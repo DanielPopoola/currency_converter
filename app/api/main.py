@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
 
     try:
         logger.info("Setting up database...")
-        service_factory.db_manager.create_tables()
+        #service_factory.db_manager.create_tables()
         service_factory.db_manager.seed_initial_data()
 
         # Initialize services  
