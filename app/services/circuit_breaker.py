@@ -168,7 +168,7 @@ class CircuitBreaker:
             with self.db_manager.get_session() as session:
                 log_entry = CircuitBreakerLog(
                     provider_id=self.provider_id,
-                    previous_state=current_state if current_state else None,
+                    previous_state=current_state.value if current_state.value else None,
                     new_state=new_state.value,
                     failure_count=failure_count,
                     reason=reason
