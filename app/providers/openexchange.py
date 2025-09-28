@@ -36,7 +36,7 @@ class OpenExchangeProvider(APIProvider):
                     base_currency=base,
                     target_currency=target,
                     rate=Decimal("0"),
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(UTC),
                     provider_name=self.name,
                     raw_response=response_data,
                     is_successful=False,
@@ -79,7 +79,7 @@ class OpenExchangeProvider(APIProvider):
                 base_currency=base,
                 target_currency=target,
                 rate=Decimal("0"),
-                timestamp=datetime.now(),
+                timestamp=datetime.now(UTC),
                 provider_name=self.name,
                 raw_response=response_data,
                 is_successful=False,
@@ -124,7 +124,7 @@ class OpenExchangeProvider(APIProvider):
                 
 
                 api_timestamp = result.raw_response.get('timestamp')
-                timestamp = datetime.fromtimestamp(api_timestamp) if api_timestamp else datetime.now()
+                timestamp = datetime.fromtimestamp(api_timestamp, tz=UTC) if api_timestamp else datetime.now(UTC)
 
                 responses = []
                 for target, rate in rates_data.items():
