@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import logging
-from datetime import datetime, UTC
+from datetime import datetime
 from typing import Dict, Any
 
 from app.api.dependencies import get_service_factory
 from app.api.models.responses import HealthResponse
 from app.services.service_factory import ServiceFactory
+from app.utils.time import get_adjusted_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ async def health_check(
     try:
         logger.debug("Performing system health check")
         health_data = {
-            "timestamp": datetime.now(UTC),
+            "timestamp": get_adjusted_timestamp(),
             "services": {}
         }
 
@@ -91,7 +92,7 @@ async def health_check(
         logger.error(f"Health check failed: {e}")
         return {
             "status": "unhealthy",
-            "timestamp": datetime.now(UTC),
+            "timestamp": get_adjusted_timestamp(),
             "services": {
                 "error": "Health check system failure"
             }
@@ -109,7 +110,7 @@ async def simple_health_check():
     """
     return {
         "status": "ok",
-        "timestamp": datetime.now(UTC),
+        "timestamp": get_adjusted_timestamp(),
         "message": "API is responding"
     }
 
@@ -146,7 +147,7 @@ async def providers_health_check(
                     "error": str(e)
                 }
         return {
-            "timestamp": datetime.now(UTC),
+            "timestamp": get_adjusted_timestamp(),
             "providers": provider_health,
             "primary_provider": service_factory.rate_aggregator.primary_provider if service_factory.rate_aggregator else None
         }

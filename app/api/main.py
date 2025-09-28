@@ -90,6 +90,7 @@ app.add_middleware(
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions with consistent format"""
+    logger.error(f"HTTPException caught: Status {exc.status_code}, Detail: {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -116,19 +117,6 @@ async def validation_exception_handler(request: Request, exc: ValidationExceptio
         }
     )
 
-@app.exception_handler(500)
-async def internal_server_error_handler(request: Request, exc: Exception):
-    """Handle unexpected internal server errors"""
-    logger.error(f"Internal server error on {request.url.path}: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "internal_error", 
-            "message": "Service temporarily unavailable",
-            "timestamp": datetime.now().isoformat(),
-            "path": str(request.url.path)
-        }
-    )
 
 app.include_router(convert.router)
 app.include_router(rates.router)

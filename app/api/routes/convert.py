@@ -6,6 +6,7 @@ from app.api.dependencies import get_rate_aggregator
 from app.api.models.requests import ConvertRequest
 from app.api.models.responses import ConvertResponse, ErrorResponse
 from app.services.rate_aggregator import RateAggregatorService
+from app.utils.time import adjust_timestamp
 
 
 logger = logging.getLogger(__name__)
@@ -57,7 +58,7 @@ async def convert_currency(
             converted_amount=converted_amount,
             exchange_rate=rate_result.rate,
             confidence_level=rate_result.confidence_level,
-            timestamp=rate_result.timestamp
+            timestamp=adjust_timestamp(rate_result.timestamp)
         )
     except HTTPException:
         raise
