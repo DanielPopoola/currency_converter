@@ -73,7 +73,7 @@ class ServiceFactory:
 
         # Step 4: Crete currency manager
         self.currency_manager = CurrencyManager(self.db_manager, self.redis_manager)
-        #await self.currency_manager.populate_supported_currencies(self.providers)
+        # await self.currency_manager.populate_supported_currencies(self.providers)
         
         # Step 5: Create rate aggregator
         self.rate_aggregator = RateAggregatorService(

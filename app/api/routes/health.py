@@ -80,6 +80,8 @@ async def health_check(
         # Log health status
         if overall_status == "unhealthy":
             logger.warning(f"System health check: {overall_status}")
+        elif overall_status == "degraded":
+            logger.warning(f"System health check: {overall_status}")
         else:
             logger.info(f"System health check: {overall_status}")
         
@@ -87,13 +89,13 @@ async def health_check(
     
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        return HealthResponse(
-            status="unhealthy",
-            timestamp=datetime.now(UTC),
-            services={
+        return {
+            "status": "unhealthy",
+            "timestamp": datetime.now(UTC),
+            "services": {
                 "error": "Health check system failure"
             }
-        )
+        }
     
 @router.get(
     "/health/simple",

@@ -183,10 +183,12 @@ class CircuitBreaker:
         """Get current circuit breaker status for monitoring"""
         state = await self.redis_manager.get_circuit_breaker_state(self.provider_id)
         failure_count = await self.redis_manager.get_failure_count(self.provider_id)
-        
+        status = "healthy" if state.value == "CLOSED" else "unhealthy"
+         
         return {
             "provider_name": self.provider_name,
             "state": state.value,
+            "status": status,
             "failure_count": failure_count,
             "failure_threshold": self.failure_threshold,
             "consecutive_successes": self._consecutive_successes,
