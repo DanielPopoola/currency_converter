@@ -28,7 +28,7 @@ class ConvertRequest(BaseModel):
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "from_currency": "USD",
                 "to_currency": "EUR", 
@@ -39,8 +39,8 @@ class ConvertRequest(BaseModel):
 class ExchangeRateRequest(BaseModel):
     """Request model for getting exchange rates without conversion"""
     
-    from_currency: str = Field(..., min_length=3, max_length=3, description="Base currency code")
-    to_currency: str = Field(..., min_length=3, max_length=3, description="Target currency code")
+    from_currency: str = Field(..., min_length=3, max_length=5, description="Base currency code")
+    to_currency: str = Field(..., min_length=3, max_length=5, description="Target currency code")
     
     @field_validator('from_currency', 'to_currency')
     @classmethod
@@ -55,7 +55,7 @@ class ExchangeRateRequest(BaseModel):
         return v
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "from_currency": "USD",
                 "to_currency": "EUR"

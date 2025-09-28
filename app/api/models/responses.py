@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from decimal import Decimal
 from datetime import datetime, UTC
-from typing import List, Optional, Dict, Any
+from typing import Dict, Any
 
 
 class ConvertResponse(BaseModel):
@@ -16,7 +16,7 @@ class ConvertResponse(BaseModel):
     timestamp: datetime = Field(..., description="When the rate was fetched")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "from_currency": "USD",
                 "to_currency": "EUR",
@@ -38,7 +38,7 @@ class ExchangeRateResponse(BaseModel):
     timestamp: datetime = Field(..., description="When the rate was fetched")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "from_currency": "USD", 
                 "to_currency": "EUR",
@@ -57,7 +57,7 @@ class HealthResponse(BaseModel):
     services: Dict[str, Any] = Field(..., description="Status of individual services")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "healthy",
                 "timestamp": "2025-09-27T10:30:00Z", 
@@ -81,7 +81,7 @@ class ErrorResponse(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC), description="When error occurred")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "error": "service_unavailable",
                 "message": "Service temporarily unavailable",
