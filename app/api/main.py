@@ -116,7 +116,6 @@ async def validation_exception_handler(request: Request, exc: ValidationExceptio
         }
     )
 
-
 @app.exception_handler(500)
 async def internal_server_error_handler(request: Request, exc: Exception):
     """Handle unexpected internal server errors"""
@@ -171,23 +170,16 @@ async def log_requests(request: Request, call_next):
     logger.info(f"➡️  {request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
     
     # Process request
-    try:
-        response = await call_next(request)
+    response = await call_next(request)
         
-        # Calculate response time
-        response_time = (datetime.now() - start_time).total_seconds() * 1000
-        
-        # Log response
-        status_emoji = "✅" if response.status_code < 400 else "❌"
-        logger.info(f"⬅️  {status_emoji} {response.status_code} {request.method} {request.url.path} ({response_time:.2f}ms)")
-        
-        return response
-        
-    except Exception as e:
-        # Log errors
-        response_time = (datetime.now() - start_time).total_seconds() * 1000
-        logger.error(f"⬅️  💥 ERROR {request.method} {request.url.path} ({response_time:.2f}ms): {e}")
-        raise
+    # Calculate response time
+    response_time = (datetime.now() - start_time).total_seconds() * 1000
+    
+    # Log response
+    status_emoji = "✅" if response.status_code < 400 else "❌"
+    logger.info(f"⬅️  {status_emoji} {response.status_code} {request.method} {request.url.path} ({response_time:.2f}ms)")
+    
+    return response
 
 
 if __name__ == "__main__":

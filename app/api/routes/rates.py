@@ -52,16 +52,22 @@ async def get_exchange_rate(
             confidence_level=rate_result.confidence_level,
             timestamp=rate_result.timestamp
         )
-    
+
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.error(f"Rate fetch failed for {request.from_currency}->{request.to_currency}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Currency validation failed: {e}"
+        )
     except Exception as e:
         logger.error(f"Rate fetch failed for {request.from_currency}->{request.to_currency}: {e}")
         
         # Return generic error to user
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable"
+            detail="Service temporarily unavailable" 
         )
     
 @router.get(
@@ -92,12 +98,14 @@ async def get_exchange_rate_get(
         
         return await get_exchange_rate(request, rate_service)
         
+    except HTTPException:
+        raise
     except ValueError as e:
-        # Handle validation errors from ExchangeRateRequest
-        logger.warning(f"Invalid rate request parameters: {e}")
+        # Handle validation errors from ExchangeRateRequest or currency_manager
+        logger.warning(f"Invalid rate request parameters or currency validation failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid currency codes"
+            detail=f"Invalid currency codes or currency validation failed: {e}"
         )
     
     except Exception as e:

@@ -61,7 +61,12 @@ async def convert_currency(
         )
     except HTTPException:
         raise
-
+    except ValueError as e:
+        logger.error(f"Rate fetch failed for {request.from_currency}->{request.to_currency}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Currency validation failed: {e}"
+        )
     except Exception as e:
         # Log the real error for debugging
         logger.error(f"Currency conversion failed for {request.from_currency}->{request.to_currency}: {e}")

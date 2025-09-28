@@ -31,10 +31,16 @@ class CurrencyManager:
                 logger.error(f"Failed to get currencies from {provider_name}: {e}")
         
         # Store in database (no duplicates automatically)
-        await self._store_currencies_in_db(all_currencies)
+        try:
+            await self._store_currencies_in_db(all_currencies)
+        except Exception as e:
+            logger.error(f"Failed to store currencies in DB: {e}")
         
         # Cache top currencies for fast validation
-        await self._cache_top_currencies(all_currencies)
+        try:
+            await self._cache_top_currencies(all_currencies)
+        except Exception as e:
+            logger.error(f"Failed to cache top currencies: {e}")
         
         return list(all_currencies)
 
