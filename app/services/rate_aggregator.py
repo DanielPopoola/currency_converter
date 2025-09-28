@@ -176,6 +176,10 @@ class RateAggregatorService:
                 avg_rate = Decimal(sum(all_rates) / len(all_rates))
                 max_deviation = max([abs(rate - avg_rate) for rate in all_rates])
 
+                if primary_rate and max_deviation >= 1.0:
+                    avg_rate = primary_rate
+                    logger.warning(f"High deviation ({max_deviation:.4f}) between primary and secondary rates for {base}->{target}, using primary only")
+
                 logger.info(f"Rate comparison {base}->{target}: Primary({self.primary_provider}): {primary_rate}, "
                            f"Secondaries({secondary_names}): {secondary_rates}, Max deviation: {max_deviation:.6f}")
 
