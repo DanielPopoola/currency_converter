@@ -11,6 +11,8 @@ from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
 from app.database.models import APIProvider as APIProviderModel, ExchangeRate, APICallLog
 
+from app.services.currency_manager import CurrencyManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,12 +43,14 @@ class RateAggregatorService:
                  circuit_breakers: Dict[str, CircuitBreaker],  # provider_name -> circuit_breaker
                  redis_manager: RedisManager,
                  db_manager: DatabaseManager,
+                 currency_manager: CurrencyManager,
                  primary_provider: str = "FixerIO"):
         
         self.providers = providers
         self.circuit_breakers = circuit_breakers
         self.redis_manager = redis_manager
         self.db_manager = db_manager
+        self.currency_manager = currency_manager
         self.primary_provider = primary_provider
 
     async def get_exchange_rate(self, base: str, target: str) -> AggregatedRateResult:
@@ -59,6 +63,12 @@ class RateAggregatorService:
         5. Return rate
         """
         start_time = datetime.now(tz=UTC)
+
+        # NEW: Validate currencies before expensive operations
+        is_valid, error_msg = await self.currency_manager.validate_currencies(base, target)
+        if not is_valid:
+            logger.error(f"Invalid currency code: {error_msg}")
+            raise ValueError(f"Currency validation failed: {error_msg}")
 
         # Step 1: Check cache first (5-minute TTL)
         cached_rate = await self._check_cache(base, target)
@@ -292,7 +302,9 @@ class RateAggregatorService:
                 ).order_by(ExchangeRate.fetched_at.desc()).first()
 
                 if latest_rate:
-                    age_minutes = int((datetime.now(tz=UTC) - latest_rate.fetched_at).total_seconds() / 60)
+                    # Ensure fetched_at is timezone-aware for comparison
+                    fetched_at_aware = latest_rate.fetched_at.replace(tzinfo=UTC) if latest_rate.fetched_at.tzinfo is None else latest_rate.fetched_at
+                    age_minutes = int((datetime.now(tz=UTC) - fetched_at_aware).total_seconds() / 60)
                     return {
                         "rate": latest_rate.rate,
                         "timestamp": latest_rate.fetched_at.isoformat(),
@@ -389,8 +401,11 @@ class RateAggregatorService:
             "cache_status": await self.redis_manager.health_check()
         }
         
+        provider_statuses = {}
         for provider_name, circuit_breaker in self.circuit_breakers.items():
-            cb_status = await circuit_breaker.get_status()
-            status["providers"][provider_name] = cb_status
+            provider_statuses[provider_name] = await circuit_breaker.get_status()
+
+        status["providers"] = provider_statuses
+        status["status"] = "healthy" if all(p["status"] == "healthy" for p in provider_statuses.values()) else "unhealthy"
         
         return status

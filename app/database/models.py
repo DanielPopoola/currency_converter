@@ -122,3 +122,14 @@ class CircuitBreakerLog(Base):
     
     def __repr__(self):
         return f"<CircuitBreakerLog({self.provider.name}: {self.previous_state}->{self.new_state})>"
+
+class SupportedCurrency(Base):
+    """Stores all currencies supported by at least one provider"""
+    __tablename__ = "supported_currencies"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(10), nullable=False, unique=True)  # USD, EUR, etc.
+    name = Column(String(100), nullable=True)  # US Dollar, Euro
+    is_popular = Column(Boolean, default=False)  # For your top 10 cache
+    provider_count = Column(Integer, default=1)  # How many APIs support it
+    created_at = Column(TIMESTAMP, default=func.now())

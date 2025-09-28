@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.providers import APIProvider, CurrencyAPIProvider, FixerIOProvider, OpenExchangeProvider
-from app.services import CircuitBreaker, RateAggregatorService
+from app.services import CircuitBreaker, RateAggregatorService, CurrencyManager
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
 from app.database.models import APIProvider as APIProviderModel
@@ -31,6 +31,7 @@ class ServiceFactory:
         self.providers: Dict[str, APIProvider] = {}
         self.circuit_breakers: Dict[str, CircuitBreaker] = {}
         self.rate_aggregator: RateAggregatorService = None
+        self.currency_manager: CurrencyManager
 
     async def create_rate_aggregator(self) -> RateAggregatorService:
         """Create fully configured rate aggregator with all providers and circuit breakers"""
@@ -69,14 +70,19 @@ class ServiceFactory:
             )
             
             self.circuit_breakers[provider_name] = circuit_breaker
+
+        # Step 4: Crete currency manager
+        self.currency_manager = CurrencyManager(self.db_manager, self.redis_manager)
+        #await self.currency_manager.populate_supported_currencies(self.providers)
         
-        # Step 4: Create rate aggregator
+        # Step 5: Create rate aggregator
         self.rate_aggregator = RateAggregatorService(
             providers=self.providers,
             circuit_breakers=self.circuit_breakers,
             redis_manager=self.redis_manager,
             db_manager=self.db_manager,
-            primary_provider=os.getenv("PRIMARY_PROVIDER", "FixerIO")
+            primary_provider=os.getenv("PRIMARY_PROVIDER", "FixerIO"),
+            currency_manager=self.currency_manager,
         )
         
         logger.info(f"Rate aggregator created with {len(self.providers)} providers")

@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime, UTC
 from enum import Enum
-from typing import Any
+from typing import Any, List
 
 from redis import asyncio as redis
 
@@ -21,6 +21,8 @@ class RedisManager:
         self.redis_client = redis.from_url(redis_url, decode_responses=True)
         self.RATE_CACHE_TTL = 300
         self.CIRCUIT_BREAKER_TTL = 3600
+
+    TOP_CURRENCIES_KEY = "supported_currencies:top"
 
     def _get_rate_cache_key(self, base: str, target: str) -> str:
         """Generate a simple cache key for an exchange rate."""
@@ -162,7 +164,27 @@ class RedisManager:
         except Exception as e:
             logger.error(f"Failed to get last failure time for provider {provider_id}: {e}")
             return None
-        
+
+    async def get_top_currencies(self) -> List[str]:
+        """Retrieve cached list of top currencies."""
+        try:
+            cached_data = await self.redis_client.get(self.TOP_CURRENCIES_KEY)
+            if cached_data:
+                return json.loads(cached_data)
+            return []
+        except Exception as e:
+            logger.error(f"Failed to retrieve top currencies from cache: {e}")
+            return []
+
+    async def set_top_currencies(self, currencies: List[str], ttl: int = 86400):
+        """Cache a list of top currencies with a specified TTL."""
+        try:
+            await self.redis_client.setex(self.TOP_CURRENCIES_KEY, ttl, json.dumps(currencies))
+            logger.info(f"Cached {len(currencies)} top currencies with TTL {ttl}s")
+        except Exception as e:
+            logger.error(f"Failed to cache top currencies: {e}")
+
+
     # Utility methods
 
     async def health_check(self) -> dict[str, Any]:
@@ -194,3 +216,5 @@ class RedisManager:
         except Exception as e:
             logger.error(f"Failed to clear cache pattern {pattern}: {e}")
             return 0
+
+    
