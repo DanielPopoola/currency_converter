@@ -1,14 +1,146 @@
-import json
 import logging
-import time
+import json
+import sys
 from datetime import datetime, UTC
 from typing import Dict, Any, Optional, List
+from pathlib import Path
+import traceback
+from decimal import Decimal
 from enum import Enum
 from dataclasses import dataclass, asdict
 from contextlib import contextmanager
+import time
 
 
-from app.config.database import DatabaseManager
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return str(obj)
+        return super().default(obj)
+
+
+class JSONFormatter(logging.Formatter):
+    """
+    Custom formatter that outputs structured JSON logs.
+    """
+    def format(self, record: logging.LogRecord) -> str:
+        log_entry = {
+            'timestamp': datetime.now(UTC).isoformat(),
+            'level': record.levelname,
+            'logger': record.name,
+            'message': record.getMessage(),
+            'module': record.module,
+            'function': record.funcName,
+            'line': record.lineno
+        }
+
+        if record.exc_info:
+            log_entry['exception'] = {
+                'type': record.exc_info[0].__name__,
+                'message': str(record.exc_info[1]),
+                'traceback': traceback.format_exception(*record.exc_info)
+            }
+
+        if hasattr(record, 'extra_data'):
+            log_entry['data'] = record.extra_data
+
+        return json.dumps(log_entry, ensure_ascii=False, cls=CustomJSONEncoder)
+
+
+class AppLogger:
+    """
+    Centralized logging configuration for the application.
+    """
+    def __init__(self,
+                 log_directory: str = "logs",
+                 console_level: str = "INFO",
+                 file_level: str = "DEBUG",
+                 max_file_size: int = 10 * 1024 * 1024,
+                 backup_count: int = 5):
+        self.log_directory = Path(log_directory)
+        self.console_level = getattr(logging, console_level.upper())
+        self.file_level = getattr(logging, file_level.upper())
+        self.max_file_size = max_file_size
+        self.backup_count = backup_count
+
+        self.log_directory.mkdir(exist_ok=True)
+        self._setup_logging()
+
+    def _setup_logging(self) -> None:
+        root_logger = logging.getLogger()
+        root_logger.handlers.clear()
+        root_logger.setLevel(logging.DEBUG)
+
+        self._setup_console_handler(root_logger)
+        self._setup_main_file_handler(root_logger)
+        self._setup_error_file_handler(root_logger)
+        self._setup_api_log_handler()
+
+    def _setup_console_handler(self, logger: logging.Logger) -> None:
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(self.console_level)
+        console_format = '%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s'
+        console_formatter = logging.Formatter(console_format, datefmt='%H:%M:%S')
+        console_handler.setFormatter(console_formatter)
+        logger.addHandler(console_handler)
+
+    def _setup_main_file_handler(self, logger: logging.Logger) -> None:
+        from logging.handlers import RotatingFileHandler
+        system_log_dir = self.log_directory / "system"
+        system_log_dir.mkdir(exist_ok=True)
+        main_log_file = system_log_dir / "app.log"
+
+        file_handler = RotatingFileHandler(
+            main_log_file,
+            maxBytes=self.max_file_size,
+            backupCount=self.backup_count,
+            encoding='utf-8'
+        )
+        file_handler.setLevel(self.file_level)
+        file_handler.setFormatter(JSONFormatter())
+        logger.addHandler(file_handler)
+
+    def _setup_error_file_handler(self, logger: logging.Logger) -> None:
+        from logging.handlers import RotatingFileHandler
+        error_log_dir = self.log_directory / "errors"
+        error_log_dir.mkdir(exist_ok=True)
+        error_log_file = error_log_dir / "errors.log"
+
+        error_handler = RotatingFileHandler(
+            error_log_file,
+            maxBytes=self.max_file_size,
+            backupCount=self.backup_count,
+            encoding='utf-8'
+        )
+        error_handler.setLevel(logging.WARNING)
+        error_handler.setFormatter(JSONFormatter())
+        logger.addHandler(error_handler)
+
+    def _setup_api_log_handler(self) -> None:
+        from logging.handlers import RotatingFileHandler
+        api_logger = logging.getLogger('app.api')
+        api_log_dir = self.log_directory / "api"
+        api_log_dir.mkdir(exist_ok=True)
+        api_log_file = api_log_dir / "api_calls.log"
+
+        api_handler = RotatingFileHandler(
+            api_log_file,
+            maxBytes=self.max_file_size,
+            backupCount=self.backup_count,
+            encoding='utf-8'
+        )
+        api_handler.setLevel(logging.DEBUG)
+        api_handler.setFormatter(JSONFormatter())
+        api_logger.propagate = False
+        api_logger.addHandler(api_handler)
+        
+        # Also add console handler for immediate feedback
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(self.console_level)
+        console_format = '%(asctime)s | API | %(levelname)-8s | %(message)s'
+        console_formatter = logging.Formatter(console_format, datefmt='%H:%M:%S')
+        console_handler.setFormatter(console_formatter)
+        api_logger.addHandler(console_handler)
 
 
 class LogLevel(Enum):
@@ -20,7 +152,6 @@ class LogLevel(Enum):
 
 
 class EventType(Enum):
-    """Different types of events we want to track"""
     CURRENCY_VALIDATION = "currency_validation"
     API_CALL = "api_call"
     CIRCUIT_BREAKER = "circuit_breaker"
@@ -31,88 +162,47 @@ class EventType(Enum):
 
 @dataclass
 class LogEvent:
-    """Structured log event with all the context needed"""
     event_type: EventType
     level: LogLevel
     message: str
     timestamp: datetime
     duration_ms: Optional[float] = None
-
-    # Context data (varies by event type)
     user_context: Optional[Dict[str, Any]] = None
     api_context: Optional[Dict[str, Any]] = None
     performance_context: Optional[Dict[str, Any]] = None
     error_context: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON logging"""
         data = asdict(self)
         data['timestamp'] = self.timestamp.isoformat()
         data['event_type'] = self.event_type.value
         data['level'] = self.level.value
         return data
-    
-    def to_json(self) -> str:
-        """Convert to JSON string"""
-        return json.dumps(self.to_dict(), default=str)
-    
 
 
 class ProductionLogger:
-    """Enhanced logger for production monitoring and debugging"""
-
-    def __init__(self, db_manager: DatabaseManager):
-        self.db_manager = db_manager
-        self.logger = logging.getLogger("currency_converter")
-
-        self._setup_structured_logging()
-
-    def _setup_structured_logging(self):
-        """Configure JSON structured logging"""
-        # Create custom formatter for JSON logs
-        class JSONFormatter(logging.Formatter):
-            def format(self, record):
-                log_data = {
-                    "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
-                    "level": record.levelname,
-                    "logger": record.name,
-                    "message": record.getMessage(),
-                    "module": record.module,
-                    "function": record.funcName,
-                    "line": record.lineno
-                }
-
-                # Add structured data if present
-                if hasattr(record, 'structured_data'):
-                    log_data.update(record.structured_data)
-
-                return json.dumps(log_data)
-            
-        # Add JSON handler
-        json_handler = logging.StreamHandler()
-        json_handler.setFormatter(JSONFormatter())
-        self.logger.addHandler(json_handler)
-        self.logger.setLevel(logging.INFO)
+    def __init__(self):
+        self.system_logger = logging.getLogger()  # Root logger for general events
+        self.api_logger = logging.getLogger('app.api') # API-specific logger
 
     def log_event(self, event: LogEvent):
-        """Log a structured event"""
-        # Log to standard logger with structured data
-        extra = {"structured_data": event.to_dict()}
+        logger = self.api_logger if event.event_type in [EventType.API_CALL, EventType.CIRCUIT_BREAKER] else self.system_logger
+        
+        extra = {"extra_data": event.to_dict()}
 
-        if event.level == LogLevel.DEBUG:
-            self.logger.debug(event.message, extra=extra)
-        elif event.level == LogLevel.INFO:
-            self.logger.info(event.message, extra=extra)
-        elif event.level == LogLevel.WARNING:
-            self.logger.warning(event.message, extra=extra)
-        elif event.level == LogLevel.ERROR:
-            self.logger.error(event.message, extra=extra)
-        elif event.level == LogLevel.CRITICAL:
-            self.logger.critical(event.message, extra=extra)
+        level_map = {
+            LogLevel.DEBUG: logger.debug,
+            LogLevel.INFO: logger.info,
+            LogLevel.WARNING: logger.warning,
+            LogLevel.ERROR: logger.error,
+            LogLevel.CRITICAL: logger.critical,
+        }
+        
+        log_func = level_map.get(event.level, logger.info)
+        log_func(event.message, extra=extra)
 
     def log_currency_validation(self, from_currency: str, to_currency: str,
                                 validation_result: Dict[str, Any],  duration_ms: float):
-        """Log currency validation events with performance metrics"""
         event = LogEvent(
             event_type=EventType.CURRENCY_VALIDATION,
             level=LogLevel.INFO if validation_result['valid'] else LogLevel.WARNING,
@@ -130,12 +220,10 @@ class ProductionLogger:
                 "db_lookup_required": validation_result.get('db_lookup_required', False)
             }
         )
-
         self.log_event(event)
 
     def log_api_call(self, provider_name: str, endpoint: str, success: bool, response_time_ms: float,
                      error_message: Optional[str] = None, rate_data: Optional[Dict[str, Any]] = None):
-        """Log API calls with detailed context"""
         event = LogEvent(
             event_type=EventType.API_CALL,
             level=LogLevel.INFO if success else LogLevel.ERROR,
@@ -149,16 +237,12 @@ class ProductionLogger:
                 "response_time_ms": response_time_ms,
                 "rate_data": rate_data
             },
-            error_context={
-                "error_message": error_message,
-            } if error_message else None
+            error_context={"error_message": error_message} if error_message else None
         )
-
         self.log_event(event)
 
     def log_circuit_breaker_event(self, provider_name: str, old_state: str, 
                                  new_state: str, failure_count: int, reason: str):
-        """Log circuit breaker state changes"""
         event = LogEvent(
             event_type=EventType.CIRCUIT_BREAKER,
             level=LogLevel.WARNING if new_state == "OPEN" else LogLevel.INFO,
@@ -176,7 +260,6 @@ class ProductionLogger:
 
     def log_cache_operation(self, operation: str, cache_key: str, hit: bool, 
                           duration_ms: float, data_age_minutes: Optional[int] = None):
-        """Log cache operations (hit/miss/set)"""
         event = LogEvent(
             event_type=EventType.CACHE_OPERATION,
             level=LogLevel.DEBUG,
@@ -197,7 +280,6 @@ class ProductionLogger:
                            confidence_level: str, sources_used: List[str],
                            is_primary_used: bool, was_cached: bool, 
                            total_duration_ms: float, warnings: Optional[List[str]] = None):
-        """Log the final rate aggregation result with full context"""
         event = LogEvent(
             event_type=EventType.RATE_AGGREGATION,
             level=LogLevel.WARNING if confidence_level == "low" else LogLevel.INFO,
@@ -226,7 +308,6 @@ class ProductionLogger:
     def log_user_request(self, endpoint: str, request_data: Dict[str, Any],
                         success: bool, response_time_ms: float, 
                         error_message: Optional[str] = None):
-        """Log user API requests"""
         event = LogEvent(
             event_type=EventType.USER_REQUEST,
             level=LogLevel.INFO if success else LogLevel.ERROR,
@@ -238,33 +319,30 @@ class ProductionLogger:
                 "request_data": request_data,
                 "success": success
             },
-            performance_context={
-                "response_time_ms": response_time_ms
-            },
-            error_context={
-                "error_message": error_message
-            } if error_message else None
+            performance_context={"response_time_ms": response_time_ms},
+            error_context={"error_message": error_message} if error_message else None
         )
         self.log_event(event)
     
     @contextmanager
     def time_operation(self, operation_name: str):
-        """Context manager to time operations"""
         start_time = time.time()
         try:
             yield
         finally:
             duration_ms = (time.time() - start_time) * 1000
-            self.logger.debug(f"{operation_name} took {duration_ms:.2f}ms")
+            self.system_logger.debug(f"{operation_name} took {duration_ms:.2f}ms")
 
 
-# Global logger instance
+# Global logger instances
+app_logger: Optional[AppLogger] = None
 production_logger: Optional[ProductionLogger] = None
 
 
-def get_production_logger(db_manager: DatabaseManager) -> ProductionLogger:
-    """Get or create production logger instance"""
-    global production_logger
+def get_production_logger() -> ProductionLogger:
+    global app_logger, production_logger
+    if app_logger is None:
+        app_logger = AppLogger()
     if production_logger is None:
-        production_logger = ProductionLogger(db_manager)
+        production_logger = ProductionLogger()
     return production_logger
