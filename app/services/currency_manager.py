@@ -1,11 +1,13 @@
 import logging
-from typing import Dict, Set, Optional, Tuple
+import time
+from typing import Dict, List, Set, Optional, Tuple
+from datetime import datetime, UTC
 
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.sql import func
 
 from app.providers.base import APIProvider
 from app.database.models import SupportedCurrency
+from app.monitoring.logger import get_production_logger, LogLevel, LogEvent, EventType
 
 logger = logging.getLogger(__name__)
 
@@ -13,36 +15,113 @@ class CurrencyManager:
     def __init__(self, db_manager, redis_manager):
         self.db_manager = db_manager
         self.redis_manager = redis_manager
+        self.production_logger = get_production_logger(db_manager)
         self.TOP_CURRENCIES_KEY = "supported_currencies:top"
-        self.ALL_CURRENCIES_KEY = "supported_currencies:all" 
+        self.ALL_CURRENCIES_KEY = "supported_currencies:all"
+        self.VALIDATION_CACHE_KEY = "currency_validation:{}"
         
-    async def populate_supported_currencies(self, providers: Dict[str, APIProvider]):
+        self.POPULAR_CURRENCIES = [
+            "USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "NGN", "ZAR"
+        ]
+
+    async def populate_supported_currencies(self, providers: Dict[str, APIProvider]) -> List[str]: 
         """Fetch and merge supported currencies from all providers"""
+        start_time = time.time()
         all_currencies = set()
+        provider_currency_counts = {}
+
+        self.production_logger.log_event(
+            LogEvent(
+                event_type=EventType.API_CALL,
+                level=LogLevel.INFO,
+                message=f"Starting currency population from {len(providers)} providers",
+                timestamp=datetime.now(UTC),
+                api_context={
+                    "operation": "populate_currencies",
+                    "provider_count": len(providers),
+                    "providers": list(providers.keys())
+                }
+            )
+        )
         
         for provider_name, provider in providers.items():
+            provider_start = time.time()
             try:
                 result = await provider.get_supported_currencies()
+                provider_duration = (time.time() - provider_start) * 1000
                 if result.was_successful and result.data:
                     currencies = set(result.data)
                     all_currencies.update(currencies)
-                    logger.info(f"{provider_name}: {len(currencies)} currencies")
+                    provider_currency_counts[provider_name] = len(currencies)
+
+                    # Log successful provider fetch
+                    self.production_logger.log_api_call(
+                        provider_name=provider_name,
+                        endpoint="get_supported_currencies",
+                        success=True,
+                        response_time_ms=provider_duration,
+                        rate_data={"currency_count": len(currencies)}
+                    )
+                else:
+                    # Log provider failure
+                    self.production_logger.log_api_call(
+                        provider_name=provider_name,
+                        endpoint="get_supported_currencies", 
+                        success=False,
+                        response_time_ms=provider_duration,
+                        error_message=result.error_message or "No currencies returned"
+                    )
             except Exception as e:
-                logger.error(f"Failed to get currencies from {provider_name}: {e}")
-        
-        # Store in database (no duplicates automatically)
+                provider_duration = (time.time() - provider_start) * 1000
+                self.production_logger.log_api_call(
+                    provider_name=provider_name,
+                    endpoint="get_supported_currencies",
+                    success=False,
+                    response_time_ms=provider_duration,
+                    error_message=str(e)
+                )
+
+        total_duration = (time.time() - start_time) * 1000
+
         try:
             await self._store_currencies_in_db(all_currencies)
+            await self._cache_top_currencies()
+            # Log successful completion
+            self.production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.API_CALL,
+                    level=LogLevel.INFO,
+                    message=f"Currency population completed: {len(all_currencies)} total currencies",
+                    timestamp=datetime.now(UTC),
+                    duration_ms=total_duration,
+                    api_context={
+                        "operation": "populate_currencies_complete",
+                        "total_currencies": len(all_currencies),
+                        "provider_breakdown": provider_currency_counts,
+                        "successful_providers": len([p for p in provider_currency_counts if provider_currency_counts[p] > 0])
+                    },
+                    performance_context={
+                        "total_duration_ms": total_duration,
+                        "database_store_completed": True,
+                        "cache_update_completed": True
+                    }
+                )
+            )
+            
         except Exception as e:
-            logger.error(f"Failed to store currencies in DB: {e}")
-        
-        # Cache top currencies for fast validation
-        try:
-            await self._cache_top_currencies(all_currencies)
-        except Exception as e:
-            logger.error(f"Failed to cache top currencies: {e}")
+            self.production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.API_CALL,
+                    level=LogLevel.ERROR,
+                    message=f"Failed to store/cache currencies: {str(e)}",
+                    timestamp=datetime.now(UTC),
+                    duration_ms=total_duration,
+                    error_context={"storage_error": str(e)}
+                )
+            )
         
         return list(all_currencies)
+    
 
     async def _store_currencies_in_db(self, currencies: Set[str]):
         """Store supported currencies in the database."""
@@ -57,55 +136,176 @@ class CurrencyManager:
             session.commit()
             logger.info(f"Stored {len(currencies)} unique currencies in the database.")
 
-    async def _cache_top_currencies(self, all_currencies: Set[str]):
+    async def _cache_top_currencies(self):
         """Select top N currencies and cache them in Redis."""
-        # This is a simplified example.
-        sorted_currencies = sorted(list(all_currencies))
-        top_n_currencies = sorted_currencies[:10]  # Example: top 10 currencies
-
-        await self.redis_manager.set_top_currencies(top_n_currencies)
-        logger.info(f"Cached top {len(top_n_currencies)} currencies: {top_n_currencies}")
+        await self.redis_manager.set_top_currencies(self.TOP_CURRENCIES_KEY)
+        logger.info(f"Cached top {len(self.TOP_CURRENCIES_KEY)} currencies: {self.TOP_CURRENCIES_KEY}")
 
     async def validate_currencies(self, base: str, target: str) -> Tuple[bool, Optional[str]]:
         """
+        Validate currencies with comprehensive logging and performance tracking
+        
         Returns: (is_valid, error_message)
-        
-        Strategy:
-        1. Check top currencies cache first
-        2. If not in cache, check database  
-        3. Return specific error for unsupported currency
         """
-        
-        # Step 1: Quick cache check for common currencies
-        top_currencies = await self.redis_manager.get_top_currencies()
-        
-        if top_currencies:
-            if base in top_currencies and target in top_currencies:
-                return True, None  # Fast path - both currencies cached
-                
-            # If either currency not in top cache, they might still be valid
-            # Don't return error yet - check full database
-        
-        # Step 2: Database check for full currency list
+        start_time = time.time()
+        validation_result = {
+            "valid": False,
+            "cache_hit": False,
+            "db_lookup_required": False,
+            "top_cache_checked": False,
+            "database_checked": False,
+            "error_details": None
+        }
+            
         try:
-            Session = sessionmaker(bind=self.db_manager.engine)
-            with Session() as session:
-                supported = session.query(SupportedCurrency.code).all()
-                supported_set = {currency.code for currency in supported}
+            # Step 1: Check validation cache first (to avoid repeated validations)
+            cache_key = self.VALIDATION_CACHE_KEY.format(f"{base}_{target}")
+            cache_validation = await self.redis_manager.get_cached_currency(cache_key)
+
+            if cache_validation:
+                validation_result["cache_hit"] = True
+                validation_result["valid"] = cache_validation.get("valid", False)
+                duration_ms = (time.time() - start_time) * 100
+
+                # Log cache hit
+                self.production_logger.log_currency_validation(
+                    from_currency=base,
+                    to_currency=target,
+                    validation_result=validation_result,
+                    duration_ms=duration_ms
+                )
+
+                if validation_result["valid"]:
+                    return True, None
+                else:
+                    return False, cache_validation.get_cached_currency("error_message")
                 
-                unsupported = []
-                if base not in supported_set:
-                    unsupported.append(base)
-                if target not in supported_set:
-                    unsupported.append(target)
-                
-                if unsupported:
-                    error_msg = f"Unsupported currency(ies): {', '.join(unsupported)}"
-                    return False, error_msg
+            # Step 2: Check top currencies cache (fast path for popular currencies)
+            validation_result["top_cache_checked"] = True
+            top_currencies = await self.redis_manager.get_top_currencies()
+
+            if top_currencies:
+                if base in top_currencies and target in top_currencies:
+                    validation_result["result"] = True
+                    validation_result["cache_hit"] = True
+
+                    # Cache this validation result
+                    await self._cache_validation_result(base, target, True, None)
+
+                    duration_ms = (time.time() - start_time) * 1000
+                    self.production_logger.log_currency_validation(
+                        from_currency=base,
+                        to_currency=target,
+                        validation_result=validation_result,
+                        duration_ms=duration_ms
+                    )
                     
-                return True, None
+                    return True, None
                 
+                # If one or both currencies not in top cache, we need database lookup
+                validation_result["db_lookup_required"] = True
+
+            # Step 3: Database lookup for comprehensive validation
+            validation_result["database_checked"] = True
+            db_start_time = time.time()
+
+            try:
+                Session = sessionmaker(bind=self.db_manager.engine)
+                with Session() as session:
+                    supported = session.query(SupportedCurrency.code).all()
+                    supported_set = {currency.code for currency in supported}
+
+                    db_lookup_duration = (time.time() - db_start_time) * 1000
+                    validation_result["db_lookup_duration_ms"] = db_lookup_duration
+
+                    unsupported = []
+                    if base not in supported_set:
+                        unsupported.append(base)
+                    if target not in supported_set:
+                        unsupported.append(target)
+
+                    if unsupported:
+                        error_msg = f"Unsupported currency(ies): {', '.join(unsupported)}"
+                        validation_result["valid"] = False
+                        validation_result["error_details"] = {
+                            "unsupported_currencies": unsupported,
+                            "total_supported": len(supported_set)
+                        }
+                        
+                        # Cache negative result (shorter TTL)
+                        await self._cache_validation_result(base, target, False, error_msg, ttl=300)
+
+                        duration_ms = (time.time() - start_time) * 1000
+                        self.production_logger.log_currency_validation(
+                            from_currency=base,
+                            to_currency=target,
+                            validation_result=validation_result,
+                            duration_ms=duration_ms
+                        )
+                        
+                        return False, error_msg
+
+                    # Both currencies are valid
+                    validation_result["valid"] = True
+                    validation_result["error_details"] = {
+                        "total_supported": len(supported_set)
+                    }
+
+                    # Cache postive result
+                    await self._cache_validation_result(base, target, True, None)
+
+                    duration_ms = (time.time() - start_time) * 1000
+                    self.production_logger.log_currency_validation(
+                        from_currency=base,
+                        to_currency=target,
+                        validation_result=validation_result,
+                        duration_ms=duration_ms
+                    )
+                    
+                    return True, None
+            except Exception as db_error:
+                validation_result["error_details"] = {
+                    "database_error": str(db_error)
+                }
+                duration_ms = (time.time() - start_time) * 1000
+
+                self.production_logger.log_currency_validation(
+                    from_currency=base,
+                    to_currency=target,
+                    validation_result=validation_result,
+                    duration_ms=duration_ms
+                )
+
+                # Fail open - let API calls proceed and handle errors there
+                return True, None
+            
         except Exception as e:
-            logger.error(f"Currency validation error: {e}")
-            # Fail open - let API calls proceed and handle errors there
+            validation_result["error_details"] = {
+                "unexpected_error": str(e)
+            }
+            duration_ms = (time.time() - start_time) * 1000
+            
+            self.production_logger.log_currency_validation(
+                from_currency=base,
+                to_currency=target,
+                validation_result=validation_result,
+                duration_ms=duration_ms
+            )
+            
+            # Fail open - let API calls proceed
             return True, None
+        
+    async def _cache_validation_result(self, base: str, target: str, is_valid: bool,
+                                       error_message: Optional[str] = None, ttl: int = 900):
+        """Cache validation results to avoid repeated database lookups"""
+        cache_key = self.VALIDATION_CACHE_KEY.format(f"{base}_{target}")
+        cache_data = {
+            "valid": is_valid,
+            "error_message": error_message,
+            "cached_at": datetime.now(UTC).isoformat()
+        }
+        
+        try:
+            await self.redis_manager.set_cache_validation_result(cache_key, ttl, cache_data)
+        except Exception as e:
+            logger.warning(f"Failed to cache validation result: {e}")

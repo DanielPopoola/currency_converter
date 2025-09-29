@@ -9,7 +9,6 @@ from contextlib import contextmanager
 
 
 from app.config.database import DatabaseManager
-from app.database.models import APICallLog, ExchangeRate
 
 
 class LogLevel(Enum):
