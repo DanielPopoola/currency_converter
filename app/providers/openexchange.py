@@ -49,7 +49,7 @@ class OpenExchangeProvider(APIProvider):
                     base_currency=base,
                     target_currency=target,
                     rate=Decimal("0"),
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(UTC),
                     provider_name=self.name,
                     raw_response=response_data,
                     is_successful=False,

@@ -25,7 +25,7 @@ class JSONFormatter(logging.Formatter):
     """
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
-            'timestamp': datetime.now(UTC).isoformat(),
+            'timestamp': datetime.now().isoformat(),
             'level': record.levelname,
             'logger': record.name,
             'message': record.getMessage(),
@@ -210,7 +210,7 @@ class ProductionLogger:
             event_type=EventType.CURRENCY_VALIDATION,
             level=LogLevel.INFO if validation_result['valid'] else LogLevel.WARNING,
             message=f"Currency validation: {from_currency}->{to_currency} ({'valid' if validation_result['valid'] else 'invalid'})",
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(),
             duration_ms=duration_ms,
             user_context={
                 "from_currency": from_currency,
@@ -231,7 +231,7 @@ class ProductionLogger:
             event_type=EventType.API_CALL,
             level=LogLevel.INFO if success else LogLevel.ERROR,
             message=f"API call to {provider_name}/{endpoint}: {'SUCCESS' if success else 'FAILED'}",
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(),
             duration_ms=response_time_ms,
             api_context={
                 "provider": provider_name,
@@ -250,7 +250,7 @@ class ProductionLogger:
             event_type=EventType.CIRCUIT_BREAKER,
             level=LogLevel.WARNING if new_state == "OPEN" else LogLevel.INFO,
             message=f"Circuit breaker {provider_name}: {old_state} -> {new_state} ({reason})",
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(),
             api_context={
                 "provider": provider_name,
                 "old_state": old_state,
@@ -267,7 +267,7 @@ class ProductionLogger:
             event_type=EventType.CACHE_OPERATION,
             level=LogLevel.DEBUG,
             message=f"Cache {operation} for {cache_key}: {'HIT' if hit else 'MISS'}",
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(),
             duration_ms=duration_ms,
             performance_context={
                 "operation": operation,
@@ -287,7 +287,7 @@ class ProductionLogger:
             event_type=EventType.RATE_AGGREGATION,
             level=LogLevel.WARNING if confidence_level == "low" else LogLevel.INFO,
             message=f"Rate aggregation {base}->{target}: {final_rate} ({confidence_level} confidence)",
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(),
             duration_ms=total_duration_ms,
             user_context={
                 "base_currency": base,
@@ -315,7 +315,7 @@ class ProductionLogger:
             event_type=EventType.USER_REQUEST,
             level=LogLevel.INFO if success else LogLevel.ERROR,
             message=f"User request to {endpoint}: {'SUCCESS' if success else 'FAILED'}",
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(),
             duration_ms=response_time_ms,
             user_context={
                 "endpoint": endpoint,

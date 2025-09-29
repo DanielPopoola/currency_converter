@@ -78,7 +78,7 @@ class ErrorResponse(BaseModel):
     
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Human-readable error message") 
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC), description="When error occurred")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(), description="When error occurred")
     
     class Config:
         json_schema_extra = {

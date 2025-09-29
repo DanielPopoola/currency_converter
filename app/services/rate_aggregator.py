@@ -129,7 +129,7 @@ class RateAggregatorService:
                     event_type=EventType.RATE_AGGREGATION,
                     level=LogLevel.ERROR,
                     message=f"Provider {provider_name} not found",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': 'Provider not configured'}
                 )
             )
@@ -265,7 +265,7 @@ class RateAggregatorService:
                             event_type=EventType.RATE_AGGREGATION,
                             level=LogLevel.WARNING,
                             message=f"High deviation ({max_deviation:.4f}) between primary and secondary rates for {base}->{target}, using primary only",
-                            timestamp=datetime.now(UTC),
+                            timestamp=datetime.now(),
                             api_context={
                                 'base_currency': base,
                                 'target_currency': target,
@@ -281,7 +281,7 @@ class RateAggregatorService:
                         event_type=EventType.RATE_AGGREGATION,
                         level=LogLevel.INFO,
                         message=f"Rate comparison {base}->{target}: Primary({self.primary_provider}): {primary_rate}, Secondaries({secondary_names}): {secondary_rates}, Max deviation: {max_deviation:.6f}",
-                        timestamp=datetime.now(UTC),
+                        timestamp=datetime.now(),
                         api_context={
                             'base_currency': base,
                             'target_currency': target,
@@ -342,7 +342,7 @@ class RateAggregatorService:
                     event_type=EventType.RATE_AGGREGATION,
                     level=LogLevel.WARNING,
                     message=f"Primary provider {self.primary_provider} failed, using secondary sources",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     api_context={
                         'primary_provider': self.primary_provider,
                         'successful_secondary_providers': [r.provider_name for r in successful_results]
@@ -383,7 +383,7 @@ class RateAggregatorService:
                     event_type=EventType.RATE_AGGREGATION,
                     level=LogLevel.ERROR,
                     message=f"All providers failed for {base}->{target}, checking stale cache",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     api_context={
                         'base_currency': base,
                         'target_currency': target
@@ -526,7 +526,7 @@ class RateAggregatorService:
                     event_type=EventType.DATABASE_OPERATION,
                     level=LogLevel.ERROR,
                     message=f"Failed to log results to database: {e}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )

@@ -1,10 +1,9 @@
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any, List
-from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
+from app.monitoring.logger import get_production_logger
 
 import httpx
 
@@ -85,7 +84,7 @@ class APIProvider(ABC):
 
     async def _make_request(self, endpoint: str, params: dict[str, Any] | None = None) -> APICallResult:
         """Common HTTP request handling with timing and error management"""
-        start_time = datetime.now(UTC)
+        start_time = datetime.now()
         url = self._build_request_url(endpoint, params or {})
         try:
             response = await self.client.get(url)

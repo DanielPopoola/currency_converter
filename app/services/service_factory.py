@@ -93,7 +93,7 @@ class ServiceFactory:
                 event_type=EventType.SERVICE_LIFECYCLE,
                 level=LogLevel.INFO,
                 message=f"Rate aggregator created with {len(self.providers)} providers",
-                timestamp=datetime.now(UTC),
+                timestamp=datetime.now(),
                 api_context={'provider_count': len(self.providers)}
             )
         )
@@ -111,7 +111,7 @@ class ServiceFactory:
                     event_type=EventType.DATABASE_OPERATION,
                     level=LogLevel.ERROR,
                     message=f"Failed to get provider IDs: {e}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )
@@ -128,7 +128,7 @@ class ServiceFactory:
                 event_type=EventType.SERVICE_LIFECYCLE,
                 level=LogLevel.INFO,
                 message="Services cleaned up successfully",
-                timestamp=datetime.now(UTC),
+                timestamp=datetime.now(),
             )
         )
     

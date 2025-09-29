@@ -38,7 +38,7 @@ async def health_check(
                 event_type=EventType.HEALTH_CHECK,
                 level=LogLevel.INFO,
                 message="Performing system health check",
-                timestamp=datetime.now(tz=UTC)
+                timestamp=datetime.now()
             )
         )
         health_data = {
@@ -56,7 +56,7 @@ async def health_check(
                     event_type=EventType.HEALTH_CHECK,
                     level=LogLevel.ERROR,
                     message=f"Database health check failed: {e}",
-                    timestamp=datetime.now(tz=UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )
@@ -75,7 +75,7 @@ async def health_check(
                     event_type=EventType.HEALTH_CHECK,
                     level=LogLevel.ERROR,
                     message=f"Cache health check failed: {e}",
-                    timestamp=datetime.now(tz=UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )
@@ -99,7 +99,7 @@ async def health_check(
                     event_type=EventType.HEALTH_CHECK,
                     level=LogLevel.ERROR,
                     message=f"Rate aggregator health check failed: {e}",
-                    timestamp=datetime.now(tz=UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )
@@ -124,7 +124,7 @@ async def health_check(
                 event_type=EventType.HEALTH_CHECK,
                 level=level,
                 message=f"System health check: {overall_status}",
-                timestamp=datetime.now(tz=UTC),
+                timestamp=datetime.now(),
                 performance_context=health_data
             )
         )
@@ -137,7 +137,7 @@ async def health_check(
                 event_type=EventType.HEALTH_CHECK,
                 level=LogLevel.CRITICAL,
                 message=f"Health check failed: {e}",
-                timestamp=datetime.now(tz=UTC),
+                timestamp=datetime.now(),
                 error_context={'error': str(e)}
             )
         )
@@ -197,7 +197,7 @@ async def providers_health_check(
                         event_type=EventType.HEALTH_CHECK,
                         level=LogLevel.ERROR,
                         message=f"Failed to get status for provider {provider_name}: {e}",
-                        timestamp=datetime.now(tz=UTC),
+                        timestamp=datetime.now(),
                         error_context={'error': str(e)}
                     )
                 )
@@ -216,7 +216,7 @@ async def providers_health_check(
                 event_type=EventType.HEALTH_CHECK,
                 level=LogLevel.CRITICAL,
                 message=f"Provider health check failed: {e}",
-                timestamp=datetime.now(tz=UTC),
+                timestamp=datetime.now(),
                 error_context={'error': str(e)}
             )
         )

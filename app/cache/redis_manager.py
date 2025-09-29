@@ -199,7 +199,7 @@ class RedisManager:
                     event_type=EventType.CIRCUIT_BREAKER,
                     level=LogLevel.ERROR,
                     message=f"Failed to get circuit breaker state for provider {provider_id}: {e}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )
@@ -238,7 +238,7 @@ class RedisManager:
                     event_type=EventType.CIRCUIT_BREAKER,
                     level=LogLevel.ERROR,
                     message=f"Failed to set circuit breaker state for provider {provider_id}: {e}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )
@@ -257,7 +257,7 @@ class RedisManager:
                     event_type=EventType.CIRCUIT_BREAKER,
                     level=LogLevel.ERROR,
                     message=f"Failed to get failure count for provider {provider_id}: {e}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )
@@ -275,21 +275,20 @@ class RedisManager:
                     event_type=EventType.CIRCUIT_BREAKER,
                     level=LogLevel.DEBUG,
                     message=f"Provider {provider_id} failure count: {new_count}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     api_context={
                         'provider_id': provider_id,
                         'failure_count': new_count
                     }
                 )
-            )
-            return new_count
+            )            return new_count
         except Exception as e:
             self.production_logger.log_event(
                 LogEvent(
                     event_type=EventType.CIRCUIT_BREAKER,
                     level=LogLevel.ERROR,
                     message=f"Failed to increment failure count for provider {provider_id}: {e}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )
@@ -306,13 +305,12 @@ class RedisManager:
                     event_type=EventType.CIRCUIT_BREAKER,
                     level=LogLevel.DEBUG,
                     message=f"Reset failure count for provider {provider_id}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     api_context={
                         'provider_id': provider_id
                     }
                 )
-            )
-            return True
+            )            return True
             
         except Exception as e:
             self.production_logger.log_event(
@@ -320,11 +318,10 @@ class RedisManager:
                     event_type=EventType.CIRCUIT_BREAKER,
                     level=LogLevel.ERROR,
                     message=f"Failed to reset failure count for provider {provider_id}: {e}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )
-            return False
 
     async def get_last_failure_time(self, provider_id: int) -> str | None:
         """Get the timestamp of the last recorded failure."""
@@ -337,7 +334,7 @@ class RedisManager:
                     event_type=EventType.CIRCUIT_BREAKER,
                     level=LogLevel.ERROR,
                     message=f"Failed to get last failure time for provider {provider_id}: {e}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )
@@ -356,7 +353,8 @@ class RedisManager:
                 cache_key=self.TOP_CURRENCIES_KEY,
                 hit=False,
                 duration_ms=0,
-                error_message=str(e)
+                error_message=str(e),
+                timestamp=datetime.now()
             )
             return []
 
@@ -376,7 +374,8 @@ class RedisManager:
                 cache_key=self.TOP_CURRENCIES_KEY,
                 hit=False,
                 duration_ms=0,
-                error_message=str(e)
+                error_message=str(e),
+                timestamp=datetime.now()
             )
 
 
@@ -385,9 +384,9 @@ class RedisManager:
     async def health_check(self) -> Dict[str, Any]:
         """Check Redis connection health"""
         try:
-            start_time = datetime.now(tz=UTC)
+            start_time = datetime.now()
             await self.redis_client.ping()
-            response_time = (datetime.now(tz=UTC) - start_time).total_seconds() * 1000
+            response_time = (datetime.now() - start_time).total_seconds() * 1000
             
             return {
                 "status": "healthy",
@@ -409,7 +408,8 @@ class RedisManager:
                     operation="clear_pattern",
                     cache_key=pattern,
                     hit=False,
-                    duration_ms=0
+                    duration_ms=0,
+                    timestamp=datetime.now()
                 )
                 return deleted
             return 0
@@ -419,7 +419,8 @@ class RedisManager:
                 cache_key=pattern,
                 hit=False,
                 duration_ms=0,
-                error_message=str(e)
+                error_message=str(e),
+                timestamp=datetime.now()
             )
             return 0
 

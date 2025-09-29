@@ -49,6 +49,9 @@ class CircuitBreaker:
         # Track consecutive successes in HALF_OPEN state
         self._consecutive_successes = 0
 
+        # CircuitBreakerError needs datetime.now() for logs
+        self.last_failure_time = datetime.now()
+
 
     async def call(self, func: Callable[[], Awaitable[Any]]) -> Any:
         """Execute function with circuit breaker protection"""
@@ -66,7 +69,7 @@ class CircuitBreaker:
                 raise CircuitBreakerError(
                     self.provider_name,
                     failure_count,
-                    datetime.now(tz=UTC)
+                    datetime.now()
                 )
             
         # Execute the function
@@ -102,7 +105,7 @@ class CircuitBreaker:
                         event_type=EventType.CIRCUIT_BREAKER,
                         level=LogLevel.DEBUG,
                         message=f"Circuit breaker HALF_OPEN for {self.provider_name}: {self._consecutive_successes}/{self.success_threshold} successes",
-                        timestamp=datetime.now(UTC),
+                        timestamp=datetime.now(),
                     )
                 )
         
@@ -133,7 +136,7 @@ class CircuitBreaker:
                     event_type=EventType.CIRCUIT_BREAKER,
                     level=LogLevel.WARNING,
                     message=f"API failure for {self.provider_name}: {failure_count}/{self.failure_threshold}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                 )
             )
 
@@ -157,7 +160,7 @@ class CircuitBreaker:
                         event_type=EventType.CIRCUIT_BREAKER,
                         level=LogLevel.DEBUG,
                         message=f"Recovery timeout passed for {self.provider_name}: {time_since_failure.total_seconds()}s >= {self.recovery_timeout}s",
-                        timestamp=datetime.now(UTC),
+                        timestamp=datetime.now(),
                     )
                 )
                 return True
@@ -167,7 +170,7 @@ class CircuitBreaker:
                         event_type=EventType.CIRCUIT_BREAKER,
                         level=LogLevel.DEBUG,
                         message=f"Still in cooldown for {self.provider_name}: {time_since_failure.total_seconds()}s < {self.recovery_timeout}s",
-                        timestamp=datetime.now(UTC),
+                        timestamp=datetime.now(),
                     )
                 )
                 return False
@@ -178,7 +181,7 @@ class CircuitBreaker:
                     event_type=EventType.CIRCUIT_BREAKER,
                     level=LogLevel.ERROR,
                     message=f"Error checking reset timeout for {self.provider_name}: {e}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )
@@ -226,7 +229,7 @@ class CircuitBreaker:
                     event_type=EventType.DATABASE_OPERATION,
                     level=LogLevel.ERROR,
                     message=f"Failed to log circuit breaker state change to database: {e}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     error_context={'error': str(e)}
                 )
             )

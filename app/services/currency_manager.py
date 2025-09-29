@@ -141,7 +141,7 @@ class CurrencyManager:
                     event_type=EventType.DATABASE_OPERATION,
                     level=LogLevel.INFO,
                     message=f"Stored {len(currencies)} unique currencies in the database.",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                 )
             )
 
@@ -186,7 +186,8 @@ class CurrencyManager:
                     from_currency=base,
                     to_currency=target,
                     validation_result=validation_result,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
+                    timestamp=datetime.now()
                 )
 
                 if validation_result["valid"]:
@@ -254,7 +255,8 @@ class CurrencyManager:
                             from_currency=base,
                             to_currency=target,
                             validation_result=validation_result,
-                            duration_ms=duration_ms
+                            duration_ms=duration_ms,
+                            timestamp=datetime.now()
                         )
                         
                         return False, error_msg
@@ -287,7 +289,8 @@ class CurrencyManager:
                     from_currency=base,
                     to_currency=target,
                     validation_result=validation_result,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
+                    timestamp=datetime.now()
                 )
 
                 # Fail open - let API calls proceed and handle errors there
@@ -303,7 +306,8 @@ class CurrencyManager:
                 from_currency=base,
                 to_currency=target,
                 validation_result=validation_result,
-                duration_ms=duration_ms
+                duration_ms=duration_ms,
+                timestamp=datetime.now()
             )
             
             # Fail open - let API calls proceed
