@@ -85,8 +85,6 @@ class APIProvider(ABC):
         """Common HTTP request handling with timing and error management"""
         start_time = datetime.now(UTC)
         url = self._build_request_url(endpoint, params or {})
-        logger.info(f"Fetching data from URL: {url}")
-
         try:
             response = await self.client.get(url)
             response.raise_for_status()  # Raises HTTPStatusError for 4xx/5xx responses

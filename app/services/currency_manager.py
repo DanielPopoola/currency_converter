@@ -17,7 +17,7 @@ class CurrencyManager:
     def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager):
         self.db_manager = db_manager
         self.redis_manager = redis_manager
-        self.production_logger = get_production_logger(db_manager)
+        self.production_logger = get_production_logger()
         self.TOP_CURRENCIES_KEY = "supported_currencies:top"
         self.ALL_CURRENCIES_KEY = "supported_currencies:all"
         self.VALIDATION_CACHE_KEY = "currency_validation:{}"
@@ -37,7 +37,7 @@ class CurrencyManager:
                 event_type=EventType.API_CALL,
                 level=LogLevel.INFO,
                 message=f"Starting currency population from {len(providers)} providers",
-                timestamp=datetime.now(UTC),
+                timestamp=datetime.now(),
                 api_context={
                     "operation": "populate_currencies",
                     "provider_count": len(providers),
@@ -94,7 +94,7 @@ class CurrencyManager:
                     event_type=EventType.API_CALL,
                     level=LogLevel.INFO,
                     message=f"Currency population completed: {len(all_currencies)} total currencies",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     duration_ms=total_duration,
                     api_context={
                         "operation": "populate_currencies_complete",
@@ -116,7 +116,7 @@ class CurrencyManager:
                     event_type=EventType.API_CALL,
                     level=LogLevel.ERROR,
                     message=f"Failed to store/cache currencies: {str(e)}",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(),
                     duration_ms=total_duration,
                     error_context={"storage_error": str(e)}
                 )

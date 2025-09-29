@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable
 from app.cache.redis_manager import RedisManager, CircuitBreakerState
 from app.database.models import CircuitBreakerLog
 from app.config.database import DatabaseManager
+from app.monitoring.logger import get_production_logger, EventType, LogEvent, LogLevel
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,9 @@ class CircuitBreaker:
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.success_threshold = success_threshold
+
+        # Production Logger
+        self.production_logger = get_production_logger()
 
         # Track consecutive successes in HALF_OPEN state
         self._consecutive_successes = 0
@@ -85,7 +89,7 @@ class CircuitBreaker:
             if self._consecutive_successes >= self.success_threshold:
                 # Enough successes - close the circuit
                 await self._transition_to_closed("recovery_successful")
-                logger.info(f"Circuit breaker CLOSED for {self.provider_name} after {self._consecutive_successes} successful calls")
+                logger.debug(f"Circuit breaker CLOSED for {self.provider_name} after {self._consecutive_successes} successful calls")
             else:
                 logger.debug(f"Circuit breaker HALF_OPEN for {self.provider_name}: {self._consecutive_successes}/{self.success_threshold} successes")
         
@@ -177,7 +181,13 @@ class CircuitBreaker:
         except Exception as e:
             logger.error(f"Failed to log circuit breaker state change: {e}")
         
-        logger.info(f"Circuit breaker {self.provider_name}: {current_state.value if current_state else 'UNKNOWN'} -> {new_state.value} ({reason})")
+        self.production_logger.log_circuit_breaker_event(
+            self.provider_name,
+            current_state.value,
+            new_state.value,
+            failure_count,
+            reason
+        )
     
     async def get_status(self) -> dict:
         """Get current circuit breaker status for monitoring"""
@@ -198,9 +208,23 @@ class CircuitBreaker:
     async def force_reset(self):
         """Manually reset circuit breaker (for admin/debugging)"""
         await self._transition_to_closed("manual_reset")
-        logger.warning(f"Circuit breaker manually reset for {self.provider_name}")
+        self.production_logger.log_event(
+            LogEvent(
+                event_type=EventType.CIRCUIT_BREAKER,
+                level=LogLevel.WARNING,
+                message=f"Circuit breaker manually closed for {self.provider_name}: manual reset",
+                timestamp=datetime.now()
+            )
+        )
     
     async def force_open(self, reason: str = "manual_open"):
         """Manually open circuit breaker (for maintenance)"""  
         await self._transition_to_open(reason)
-        logger.warning(f"Circuit breaker manually opened for {self.provider_name}: {reason}")
+        self.production_logger.log_event(
+            LogEvent(
+                event_type=EventType.CIRCUIT_BREAKER,
+                level=LogLevel.WARNING,
+                message=f"Circuit breaker manually opened for {self.provider_name}: {reason}",
+                timestamp=datetime.now()
+            )
+        )

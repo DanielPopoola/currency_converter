@@ -1,6 +1,7 @@
 import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime, UTC
+import time
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
@@ -10,6 +11,7 @@ from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerError
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
 from app.database.models import APIProvider as APIProviderModel, ExchangeRate, APICallLog
+from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
 
 from app.services.currency_manager import CurrencyManager
 
@@ -52,6 +54,7 @@ class RateAggregatorService:
         self.db_manager = db_manager
         self.currency_manager = currency_manager
         self.primary_provider = primary_provider
+        self.production_logger = get_production_logger()
 
     async def get_exchange_rate(self, base: str, target: str) -> AggregatedRateResult:
         """
@@ -62,18 +65,25 @@ class RateAggregatorService:
         4. Update cache
         5. Return rate
         """
-        start_time = datetime.now(tz=UTC)
+        start_time = time.time()
 
         # NEW: Validate currencies before expensive operations
         is_valid, error_msg = await self.currency_manager.validate_currencies(base, target)
+        duration_ms = (time.time() - start_time) * 1000
         if not is_valid:
+            self.production_logger.log_currency_validation(
+                base,
+                target,
+                validation_result={},
+                duration_ms=duration_ms
+            )
             logger.error(f"Invalid currency code: {error_msg}")
             raise ValueError(f"Currency validation failed: {error_msg}")
 
         # Step 1: Check cache first (5-minute TTL)
         cached_rate = await self._check_cache(base, target)
         if cached_rate:
-            response_time_ms = int((datetime.now(tz=UTC) - start_time).total_seconds() * 1000)
+            response_time_ms = int((time.time() - start_time) * 1000)
             logger.info(f"Cache hit for {base}->{target}: {cached_rate['rate']}")
 
             return AggregatedRateResult(
@@ -116,20 +126,66 @@ class RateAggregatorService:
         provider = self.providers[provider_name]
         circuit_breaker = self.circuit_breakers[provider_name]
 
+        start_time = time.time()
+
         try:
             # Use circuit breaker to protect API call
             result = await circuit_breaker.call(
                 lambda: provider.get_exchange_rate(base, target)
             )
 
-            logger.info(f"{provider_name} API call successful: {base}-->{target} = {result.data.rate if result.data else 'N/A'}")
+            duration_ms = (time.time() - start_time) * 1000
+
+            # Log successful API call
+            self.production_logger.log_api_call(
+                provider_name=provider_name,
+                endpoint="get_exchange_rate",
+                success=True,
+                response_time_ms=duration_ms,
+                rate_data={"rate": str(result.data.rate), "base": base, "target": target}
+            )
+            logger.info(f"{provider_name} API call successful: {base}-->{target} = {result.data.rate}")
             return result
         
         except CircuitBreakerError as e:
+            duration_ms = (time.time() - start_time) * 1000
+            self.production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.CIRCUIT_BREAKER,
+                    level=LogLevel.WARNING,
+                    message=f"Circuit breaker OPEN for {provider_name}, blocking {base} -> target",
+                    timestamp=datetime.now(),
+                    duration_ms=duration_ms,
+                    api_context={
+                        'provider': provider_name,
+                        'operation': 'request_blocked',
+                        'failure_count': e.failure_count
+                    },
+                    user_context={
+                        'base_currency': base,
+                        'target_currency': target
+                    },
+                    error_context={
+                        'circuit_state': 'OPEN',
+                        'last_failure_time': e.last_failure_time.isoformat()
+                    }
+                )
+            )
             logger.warning(f"Circuit breaker open for {provider_name}: {e}")
             return None
         
         except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+        
+            # Log unexpected API failure
+            self.production_logger.log_api_call(
+                provider_name=provider_name,
+                endpoint="get_exchange_rate",
+                success=False,
+                response_time_ms=duration_ms,
+                error_message=str(e)
+            )
+            
             logger.error(f"Unexpected error calling {provider_name}: {e}")
             return None
 
@@ -159,7 +215,7 @@ class RateAggregatorService:
                                 primary_result: Optional[APICallResult],
                                 secondary_results: List[APICallResult],
                                 base: str, target: str,
-                                start_time: datetime) -> AggregatedRateResult:
+                                start_time: float) -> AggregatedRateResult:
         """
         Apply aggregation logic:
         - Use primary if available
@@ -167,7 +223,7 @@ class RateAggregatorService:
         - Fall back to secondary if primary fails
         - Calculate average if multiple sources available
         """
-        response_time_ms = int((datetime.now(tz=UTC) - start_time).total_seconds() * 1000)
+        response_time_ms = int((time.time() - start_time) * 1000)
         successful_results = [r for r in secondary_results if r.was_successful and r.data and r.data.is_successful]
 
         # Scenario 1: Primary succeeded
