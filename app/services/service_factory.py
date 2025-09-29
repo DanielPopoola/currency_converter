@@ -10,6 +10,8 @@ from app.services import CircuitBreaker, RateAggregatorService, CurrencyManager
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
 from app.database.models import APIProvider as APIProviderModel
+from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
+from datetime import datetime, UTC
 
 
 logger = logging.getLogger(__name__)
@@ -19,6 +21,7 @@ class ServiceFactory:
     """Factory to create and wire up all services with dependencies"""
 
     def __init__(self):
+        self.production_logger = get_production_logger()
         # Initialize core infrastructure
         self.redis_manager = RedisManager(
             redis_url=os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -85,7 +88,15 @@ class ServiceFactory:
             currency_manager=self.currency_manager,
         )
         
-        logger.info(f"Rate aggregator created with {len(self.providers)} providers")
+        self.production_logger.log_event(
+            LogEvent(
+                event_type=EventType.SERVICE_LIFECYCLE,
+                level=LogLevel.INFO,
+                message=f"Rate aggregator created with {len(self.providers)} providers",
+                timestamp=datetime.now(UTC),
+                api_context={'provider_count': len(self.providers)}
+            )
+        )
         return self.rate_aggregator
     
     async def _get_provider_ids(self) -> Dict[str, int]:
@@ -95,7 +106,15 @@ class ServiceFactory:
                 providers = session.query(APIProviderModel).all()
                 return {provider.name: provider.id for provider in providers}
         except Exception as e:
-            logger.error(f"Failed to get provider IDs: {e}")
+            self.production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.DATABASE_OPERATION,
+                    level=LogLevel.ERROR,
+                    message=f"Failed to get provider IDs: {e}",
+                    timestamp=datetime.now(UTC),
+                    error_context={'error': str(e)}
+                )
+            )
             return {}
     
     async def cleanup(self):
@@ -104,7 +123,14 @@ class ServiceFactory:
         for provider in self.providers.values():
             await provider.close()
         
-        logger.info("Services cleaned up successfully")
+        self.production_logger.log_event(
+            LogEvent(
+                event_type=EventType.SERVICE_LIFECYCLE,
+                level=LogLevel.INFO,
+                message="Services cleaned up successfully",
+                timestamp=datetime.now(UTC),
+            )
+        )
     
     def get_redis_manager(self) -> RedisManager:
         """Get Redis manager instance"""

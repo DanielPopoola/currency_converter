@@ -158,6 +158,8 @@ class EventType(Enum):
     CACHE_OPERATION = "cache_operation"
     RATE_AGGREGATION = "rate_aggregation"
     USER_REQUEST = "user_request"
+    DATABASE_OPERATION = "database_operation"
+    SERVICE_LIFECYCLE = "service_lifecycle"
 
 
 @dataclass
