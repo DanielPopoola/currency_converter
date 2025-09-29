@@ -5,8 +5,8 @@ from decimal import Decimal
 class ConvertRequest(BaseModel):
     """Request model for currency conversion"""
 
-    from_currency: str = Field(..., min_length=3, max_length=3, description="Source currency code (e.g., 'USD')")
-    to_currency: str = Field(..., min_length=3, max_length=3, description="Target currency code (e.g., 'EUR')")
+    from_currency: str = Field(..., min_length=3, max_length=5, description="Source currency code (e.g., 'USD')")
+    to_currency: str = Field(..., min_length=3, max_length=5, description="Target currency code (e.g., 'EUR')")
     amount: Decimal = Field(..., gt=0, description="Amount to convert (must be positive)")
 
 
