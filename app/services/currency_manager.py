@@ -7,12 +7,14 @@ from sqlalchemy.orm import sessionmaker
 
 from app.providers.base import APIProvider
 from app.database.models import SupportedCurrency
+from app.cache.redis_manager import RedisManager
+from app.config.database import DatabaseManager
 from app.monitoring.logger import get_production_logger, LogLevel, LogEvent, EventType
 
 logger = logging.getLogger(__name__)
 
 class CurrencyManager:
-    def __init__(self, db_manager, redis_manager):
+    def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager):
         self.db_manager = db_manager
         self.redis_manager = redis_manager
         self.production_logger = get_production_logger(db_manager)
@@ -138,8 +140,8 @@ class CurrencyManager:
 
     async def _cache_top_currencies(self):
         """Select top N currencies and cache them in Redis."""
-        await self.redis_manager.set_top_currencies(self.TOP_CURRENCIES_KEY)
-        logger.info(f"Cached top {len(self.TOP_CURRENCIES_KEY)} currencies: {self.TOP_CURRENCIES_KEY}")
+        await self.redis_manager.set_top_currencies(self.POPULAR_CURRENCIES)
+        logger.info(f"Cached top {len(self.POPULAR_CURRENCIES)} currencies: {self.POPULAR_CURRENCIES}")
 
     async def validate_currencies(self, base: str, target: str) -> Tuple[bool, Optional[str]]:
         """
@@ -178,7 +180,7 @@ class CurrencyManager:
                 if validation_result["valid"]:
                     return True, None
                 else:
-                    return False, cache_validation.get_cached_currency("error_message")
+                    return False, None
                 
             # Step 2: Check top currencies cache (fast path for popular currencies)
             validation_result["top_cache_checked"] = True

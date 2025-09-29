@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime, UTC
 from enum import Enum
-from typing import Any, List
+from typing import Any, List, Optional, Dict
 
 from redis import asyncio as redis
 
@@ -33,7 +33,7 @@ class RedisManager:
         return f"circuit_breaker:{provider_id}:{suffix}"
     
     # Rate caching method
-    async def rate_cache(self, base: str, target: str, rate_data: dict[str, Any]):
+    async def rate_cache(self, base: str, target: str, rate_data: Dict[str, Any]):
         """Cache exchange rate with TTL-only expiry"""
         try:
             cache_key = self._get_rate_cache_key(base, target)
@@ -59,7 +59,7 @@ class RedisManager:
             logger.error(f"Failed to cache rate {base}->{target}: {e}")
             return False
         
-    async def get_cached_rate(self, base: str, target: str) -> dict[str, Any] | None:
+    async def get_cached_rate(self, base: str, target: str) -> Dict[str, Any] | None:
         """Retrieve cached rate - TTL handles expiry automatically"""
         try:
             cache_key = self._get_rate_cache_key(base, target)
@@ -76,6 +76,41 @@ class RedisManager:
         except Exception as e:
             logger.error(f"Failed to retrieve cached rate {base}->{target}: {e}")
             return None
+
+    async def set_cache_validation_result(self, cache_key: str, ttl: int, cache_data: Dict[str, Any]) -> bool:
+        """Cache currency validation results with specified TTL."""
+
+        try:
+            json_data = json.dumps(cache_data)
+
+            result = await self.redis_client.setex(cache_key, ttl, json_data)
+            logger.debug(f"Cached validation result: {cache_key} (TTL: {ttl}s)")
+            return bool(result)
+        except Exception as e:
+            logger.error(f"Failed to cache validation result {cache_key}: {e}")
+            return False
+        
+    async def get_cached_currency(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        """Retrieve cached currency validation result"""
+        try:
+            cached_value = await self.redis_client.get(cache_key)
+
+            if cached_value is None:
+                logger.debug(f"Cache miss for validation: {cache_key}")
+                return None
+            
+            validation_data = json.loads(cached_value)
+            logger.debug(f"Cache hit for validation: {cache_key}")
+            return validation_data
+        except json.JSONDecodeError as e:
+            # Corrupted data in cache - treat as miss
+            logger.warning(f"Corrupted cache data for {cache_key}: {e}")
+            return None
+        except Exception as e:
+            # Any other error - treat as miss
+            logger.error(f"Failed to retrieve cached validation {cache_key}: {e}")
+            return None
+        
         
     # Circuit breaker method
 
@@ -187,7 +222,7 @@ class RedisManager:
 
     # Utility methods
 
-    async def health_check(self) -> dict[str, Any]:
+    async def health_check(self) -> Dict[str, Any]:
         """Check Redis connection health"""
         try:
             start_time = datetime.now(tz=UTC)
