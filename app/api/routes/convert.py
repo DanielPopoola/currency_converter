@@ -13,9 +13,6 @@ from app.monitoring.logger import get_production_logger, LogEvent, EventType, Lo
 production_logger = get_production_logger()
 
 
-
-
-
 router = APIRouter(prefix="/api/v1", tags=["conversion"])
 
 
@@ -36,11 +33,11 @@ async def convert_currency(
     """
     Convert currency amount using current exchange rates.
     """
+    start_time = time.time()
     try:
-        start_time = time.time()
         production_logger.log_user_request(
             endpoint="/convert",
-            request_data=request.dict(),
+            request_data=request.model_dump(),
             success=True, # Will be updated on failure
             response_time_ms=0 # Will be updated
         )
@@ -78,7 +75,7 @@ async def convert_currency(
         duration_ms = (time.time() - start_time) * 1000
         production_logger.log_user_request(
             endpoint="/convert",
-            request_data=request.dict(),
+            request_data=request.model_dump(),
             success=False,
             response_time_ms=duration_ms,
             error_message=str(e)
@@ -91,7 +88,7 @@ async def convert_currency(
         duration_ms = (time.time() - start_time) * 1000
         production_logger.log_user_request(
             endpoint="/convert",
-            request_data=request.dict(),
+            request_data=request.model_dump(),
             success=False,
             response_time_ms=duration_ms,
             error_message=str(e)
@@ -123,8 +120,8 @@ async def convert_currency_get(
     GET version of currency conversion for simple requests
     Example: GET /api/v1/convert/USD/EUR/100
     """
+    start_time = time.time()
     try:
-        start_time = time.time()
         # Validate and create request object
         request = ConvertRequest(
             from_currency=from_currency,
@@ -137,7 +134,7 @@ async def convert_currency_get(
     except ValueError as e:
         duration_ms = (time.time() - start_time) * 1000
         production_logger.log_user_request(
-            endpoint="/convert/{from_currency}/{to_currency}/{amount}",
+            endpoint=f"/convert/{from_currency}/{to_currency}/{amount}",
             request_data={
                 'from_currency': from_currency,
                 'to_currency': to_currency,
@@ -154,7 +151,7 @@ async def convert_currency_get(
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
         production_logger.log_user_request(
-            endpoint="/convert/{from_currency}/{to_currency}/{amount}",
+            endpoint=f"/convert/{from_currency}/{to_currency}/{amount}",
             request_data={
                 'from_currency': from_currency,
                 'to_currency': to_currency,

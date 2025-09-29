@@ -65,6 +65,7 @@ class RateAggregatorService:
         4. Update cache
         5. Return rate
         """
+        print(f"DEBUG: Entering get_exchange_rate for {base}->{target}")
         start_time = time.time()
 
         # NEW: Validate currencies before expensive operations

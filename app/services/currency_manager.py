@@ -177,9 +177,17 @@ class CurrencyManager:
             cache_validation = await self.redis_manager.get_cached_currency(cache_key)
 
             if cache_validation:
+                self.production_logger.log_event(
+                    LogEvent(
+                        event_type=EventType.CACHE_OPERATION,
+                        level=LogLevel.DEBUG,
+                        message=f"Validation cache hit for {base}->{target}: {cache_validation}",
+                        timestamp=datetime.now()
+                    )
+                )
                 validation_result["cache_hit"] = True
                 validation_result["valid"] = cache_validation.get("valid", False)
-                duration_ms = (time.time() - start_time) * 100
+                duration_ms = (time.time() - start_time) * 1000
 
                 # Log cache hit
                 self.production_logger.log_currency_validation(
@@ -187,13 +195,13 @@ class CurrencyManager:
                     to_currency=target,
                     validation_result=validation_result,
                     duration_ms=duration_ms,
-                    timestamp=datetime.now()
                 )
 
                 if validation_result["valid"]:
                     return True, None
                 else:
-                    return False, None
+                    cached_error = cache_validation.get("error_message", "Invalid currencies")
+                    return False, cached_error
                 
             # Step 2: Check top currencies cache (fast path for popular currencies)
             validation_result["top_cache_checked"] = True
@@ -256,9 +264,9 @@ class CurrencyManager:
                             to_currency=target,
                             validation_result=validation_result,
                             duration_ms=duration_ms,
-                            timestamp=datetime.now()
                         )
                         
+                        print(f"DEBUG: Validation failed for {base}->{target}. Unsupported: {unsupported}. Supported set size: {len(supported_set)}")
                         return False, error_msg
 
                     # Both currencies are valid
@@ -278,8 +286,10 @@ class CurrencyManager:
                         duration_ms=duration_ms
                     )
                     
+                    print(f"DEBUG: Validation successful for {base}->{target}. Supported set size: {len(supported_set)}")
                     return True, None
             except Exception as db_error:
+                print(f"DEBUG: Database error during validation: {type(db_error).__name__}: {db_error}")
                 validation_result["error_details"] = {
                     "database_error": str(db_error)
                 }
@@ -290,7 +300,6 @@ class CurrencyManager:
                     to_currency=target,
                     validation_result=validation_result,
                     duration_ms=duration_ms,
-                    timestamp=datetime.now()
                 )
 
                 # Fail open - let API calls proceed and handle errors there
@@ -316,6 +325,9 @@ class CurrencyManager:
     async def _cache_validation_result(self, base: str, target: str, is_valid: bool,
                                        error_message: Optional[str] = None, ttl: int = 900):
         """Cache validation results to avoid repeated database lookups"""
+        if not is_valid and error_message is None:
+            return 
+        
         cache_key = self.VALIDATION_CACHE_KEY.format(f"{base}_{target}")
         cache_data = {
             "valid": is_valid,
@@ -331,5 +343,4 @@ class CurrencyManager:
                 cache_key=cache_key,
                 hit=False,
                 duration_ms=0,
-                error_message=str(e),
             )
