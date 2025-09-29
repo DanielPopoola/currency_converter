@@ -7,8 +7,12 @@ from app.api.models.requests import ExchangeRateRequest
 from app.api.models.responses import ExchangeRateResponse, ErrorResponse
 from app.services.rate_aggregator import RateAggregatorService
 from app.utils.time import adjust_timestamp
+from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
+import time
 
-logger = logging.getLogger(__name__)
+production_logger = get_production_logger()
+
+
 
 router = APIRouter(prefix="/api/v1", tags=["rates"])
 
@@ -33,7 +37,13 @@ async def get_exchange_rate(
     without doing any amount conversion.
     """
     try:
-        logger.info(f"Getting exchange rate for {request.from_currency} -> {request.to_currency}")
+        start_time = time.time()
+        production_logger.log_user_request(
+            endpoint="/rates",
+            request_data=request.dict(),
+            success=True, # Will be updated on failure
+            response_time_ms=0 # Will be updated
+        )
 
         # Get exchange rate using rate aggregator, but no multplication by any amount like in /convert
         rate_result = await rate_service.get_exchange_rate(
@@ -41,9 +51,12 @@ async def get_exchange_rate(
             request.to_currency
         )
 
-        logger.info(
-            f"Rate fetched successfully: 1 {request.from_currency} = {rate_result.rate} {request.to_currency} "
-            f"(confidence: {rate_result.confidence_level}, sources: {rate_result.sources_used})"
+        duration_ms = (time.time() - start_time) * 1000
+        production_logger.log_user_request(
+            endpoint="/rates",
+            request_data=request.dict(),
+            success=True,
+            response_time_ms=duration_ms
         )
 
         return ExchangeRateResponse(
@@ -57,13 +70,27 @@ async def get_exchange_rate(
     except HTTPException:
         raise
     except ValueError as e:
-        logger.error(f"Rate fetch failed for {request.from_currency}->{request.to_currency}: {e}")
+        duration_ms = (time.time() - start_time) * 1000
+        production_logger.log_user_request(
+            endpoint="/rates",
+            request_data=request.dict(),
+            success=False,
+            response_time_ms=duration_ms,
+            error_message=str(e)
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Currency validation failed: {e}"
         )
     except Exception as e:
-        logger.error(f"Rate fetch failed for {request.from_currency}->{request.to_currency}: {e}")
+        duration_ms = (time.time() - start_time) * 1000
+        production_logger.log_user_request(
+            endpoint="/rates",
+            request_data=request.dict(),
+            success=False,
+            response_time_ms=duration_ms,
+            error_message=str(e)
+        )
         
         # Return generic error to user
         raise HTTPException(
@@ -91,6 +118,7 @@ async def get_exchange_rate_get(
     Example: GET /api/v1/rates/USD/EUR
     """
     try:
+        start_time = time.time()
         # Validate and create request object
         request = ExchangeRateRequest(
             from_currency=from_currency,
@@ -102,15 +130,34 @@ async def get_exchange_rate_get(
     except HTTPException:
         raise
     except ValueError as e:
-        # Handle validation errors from ExchangeRateRequest or currency_manager
-        logger.warning(f"Invalid rate request parameters or currency validation failed: {e}")
+        duration_ms = (time.time() - start_time) * 1000
+        production_logger.log_user_request(
+            endpoint="/rates/{from_currency}/{to_currency}",
+            request_data={
+                'from_currency': from_currency,
+                'to_currency': to_currency
+            },
+            success=False,
+            response_time_ms=duration_ms,
+            error_message=f"Invalid rate request parameters or currency validation failed: {e}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid currency codes or currency validation failed: {e}"
         )
     
     except Exception as e:
-        logger.error(f"GET rate fetch failed: {e}")
+        duration_ms = (time.time() - start_time) * 1000
+        production_logger.log_user_request(
+            endpoint="/rates/{from_currency}/{to_currency}",
+            request_data={
+                'from_currency': from_currency,
+                'to_currency': to_currency
+            },
+            success=False,
+            response_time_ms=duration_ms,
+            error_message=str(e)
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporarily unavailable"

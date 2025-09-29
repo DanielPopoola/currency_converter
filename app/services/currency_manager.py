@@ -11,7 +11,7 @@ from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
 from app.monitoring.logger import get_production_logger, LogLevel, LogEvent, EventType
 
-logger = logging.getLogger(__name__)
+
 
 class CurrencyManager:
     def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager):
@@ -136,12 +136,24 @@ class CurrencyManager:
                     new_currency = SupportedCurrency(code=code)
                     session.add(new_currency)
             session.commit()
-            logger.info(f"Stored {len(currencies)} unique currencies in the database.")
+            self.production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.DATABASE_OPERATION,
+                    level=LogLevel.INFO,
+                    message=f"Stored {len(currencies)} unique currencies in the database.",
+                    timestamp=datetime.now(UTC),
+                )
+            )
 
     async def _cache_top_currencies(self):
         """Select top N currencies and cache them in Redis."""
         await self.redis_manager.set_top_currencies(self.POPULAR_CURRENCIES)
-        logger.info(f"Cached top {len(self.POPULAR_CURRENCIES)} currencies: {self.POPULAR_CURRENCIES}")
+        self.production_logger.log_cache_operation(
+            operation="set_top_currencies",
+            cache_key=self.TOP_CURRENCIES_KEY,
+            hit=False,
+            duration_ms=0,
+        )
 
     async def validate_currencies(self, base: str, target: str) -> Tuple[bool, Optional[str]]:
         """
@@ -310,4 +322,10 @@ class CurrencyManager:
         try:
             await self.redis_manager.set_cache_validation_result(cache_key, ttl, cache_data)
         except Exception as e:
-            logger.warning(f"Failed to cache validation result: {e}")
+            self.production_logger.log_cache_operation(
+                operation="set_validation_result",
+                cache_key=cache_key,
+                hit=False,
+                duration_ms=0,
+                error_message=str(e),
+            )

@@ -7,8 +7,11 @@ from app.api.dependencies import get_service_factory
 from app.api.models.responses import HealthResponse
 from app.services.service_factory import ServiceFactory
 from app.utils.time import get_adjusted_timestamp
+from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
 
-logger = logging.getLogger(__name__)
+production_logger = get_production_logger()
+
+
 
 router = APIRouter(prefix="/api/v1", tags=["health"])
 
@@ -30,7 +33,14 @@ async def health_check(
     - Response times and error counts
     """
     try:
-        logger.debug("Performing system health check")
+        production_logger.log_event(
+            LogEvent(
+                event_type=EventType.HEALTH_CHECK,
+                level=LogLevel.INFO,
+                message="Performing system health check",
+                timestamp=datetime.now(tz=UTC)
+            )
+        )
         health_data = {
             "timestamp": get_adjusted_timestamp(),
             "services": {}
@@ -41,7 +51,15 @@ async def health_check(
             db_health = await service_factory.get_db_manager().health_check()
             health_data["services"]["database"] = db_health
         except Exception as e:
-            logger.error(f"Database health check failed: {e}")
+            production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.HEALTH_CHECK,
+                    level=LogLevel.ERROR,
+                    message=f"Database health check failed: {e}",
+                    timestamp=datetime.now(tz=UTC),
+                    error_context={'error': str(e)}
+                )
+            )
             health_data["services"]["database"] = {
                 "status": "unhealthy",
                 "error": "Connection failed"
@@ -52,7 +70,15 @@ async def health_check(
             cache_health = await service_factory.get_redis_manager().health_check()
             health_data["services"]["cache"] = cache_health
         except Exception as e:
-            logger.error(f"Cache health check failed: {e}")
+            production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.HEALTH_CHECK,
+                    level=LogLevel.ERROR,
+                    message=f"Cache health check failed: {e}",
+                    timestamp=datetime.now(tz=UTC),
+                    error_context={'error': str(e)}
+                )
+            )
             health_data["services"]["cache"] = {
                 "status": "unhealthy", 
                 "error": "Connection failed"
@@ -68,7 +94,15 @@ async def health_check(
                     "status": "not_initialized"
                 }
         except Exception as e:
-            logger.error(f"Rate aggregator health check failed: {e}")
+            production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.HEALTH_CHECK,
+                    level=LogLevel.ERROR,
+                    message=f"Rate aggregator health check failed: {e}",
+                    timestamp=datetime.now(tz=UTC),
+                    error_context={'error': str(e)}
+                )
+            )
             health_data["services"]["rate_aggregator"] = {
                 "status": "unhealthy",
                 "error": "Service unavailable"
@@ -79,17 +113,34 @@ async def health_check(
         health_data["status"] = overall_status
         
         # Log health status
+        level = LogLevel.INFO
         if overall_status == "unhealthy":
-            logger.warning(f"System health check: {overall_status}")
+            level = LogLevel.ERROR
         elif overall_status == "degraded":
-            logger.warning(f"System health check: {overall_status}")
-        else:
-            logger.info(f"System health check: {overall_status}")
+            level = LogLevel.WARNING
+        
+        production_logger.log_event(
+            LogEvent(
+                event_type=EventType.HEALTH_CHECK,
+                level=level,
+                message=f"System health check: {overall_status}",
+                timestamp=datetime.now(tz=UTC),
+                performance_context=health_data
+            )
+        )
         
         return HealthResponse(**health_data)
     
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        production_logger.log_event(
+            LogEvent(
+                event_type=EventType.HEALTH_CHECK,
+                level=LogLevel.CRITICAL,
+                message=f"Health check failed: {e}",
+                timestamp=datetime.now(tz=UTC),
+                error_context={'error': str(e)}
+            )
+        )
         return {
             "status": "unhealthy",
             "timestamp": get_adjusted_timestamp(),
@@ -141,7 +192,15 @@ async def providers_health_check(
                     "is_primary": provider_name == service_factory.rate_aggregator.primary_provider
                 }
             except Exception as e:
-                logger.error(f"Failed to get status for provider {provider_name}: {e}")
+                production_logger.log_event(
+                    LogEvent(
+                        event_type=EventType.HEALTH_CHECK,
+                        level=LogLevel.ERROR,
+                        message=f"Failed to get status for provider {provider_name}: {e}",
+                        timestamp=datetime.now(tz=UTC),
+                        error_context={'error': str(e)}
+                    )
+                )
                 provider_health[provider_name] = {
                     "status": "error",
                     "error": str(e)
@@ -152,7 +211,15 @@ async def providers_health_check(
             "primary_provider": service_factory.rate_aggregator.primary_provider if service_factory.rate_aggregator else None
         }
     except Exception as e:
-        logger.error(f"Provider health check failed: {e}")
+        production_logger.log_event(
+            LogEvent(
+                event_type=EventType.HEALTH_CHECK,
+                level=LogLevel.CRITICAL,
+                message=f"Provider health check failed: {e}",
+                timestamp=datetime.now(tz=UTC),
+                error_context={'error': str(e)}
+            )
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to check provider health"

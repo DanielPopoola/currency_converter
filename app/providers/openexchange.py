@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-logger = logging.getLogger(__name__)
+
 
 from .base import APICallResult, APIProvider, ExchangeRateResponse
 
@@ -74,7 +74,15 @@ class OpenExchangeProvider(APIProvider):
             )
         
         except Exception as e:
-            logger.error(f"Failed to parse {self.name} response: {e}")
+            self.production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.API_CALL,
+                    level=LogLevel.ERROR,
+                    message=f"Failed to parse {self.name} response: {e}",
+                    timestamp=datetime.now(UTC),
+                    error_context={'error': str(e), 'raw_response': response_data}
+                )
+            )
             return ExchangeRateResponse(
                 base_currency=base,
                 target_currency=target,

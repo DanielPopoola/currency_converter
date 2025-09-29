@@ -160,6 +160,7 @@ class EventType(Enum):
     USER_REQUEST = "user_request"
     DATABASE_OPERATION = "database_operation"
     SERVICE_LIFECYCLE = "service_lifecycle"
+    HEALTH_CHECK = "health_check"
 
 
 @dataclass

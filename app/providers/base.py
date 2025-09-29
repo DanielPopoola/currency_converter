@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any, List
+from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
 
 import httpx
 
-logger = logging.getLogger(__name__)
+
 
 
 @dataclass
@@ -41,6 +42,7 @@ class APIProvider(ABC):
     """Abstract base class for all currency API providers"""
 
     def __init__(self, api_key: str, base_url: str, name: str, timeout: int = 3, extra_headers: dict = None):
+        self.production_logger = get_production_logger()
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
         self.name = name
@@ -101,18 +103,33 @@ class APIProvider(ABC):
             )
 
         except httpx.TimeoutException as e:
-            logger.warning(f"{self.name} API timeout after {self.timeout}s")
-            # Re-raise the exception so the circuit breaker can catch it
+            self.production_logger.log_api_call(
+                provider_name=self.name,
+                endpoint=endpoint,
+                success=False,
+                response_time_ms=self.timeout * 1000,
+                error_message=f"Timeout after {self.timeout}s"
+            )
             raise e
 
         except httpx.HTTPStatusError as e:
-            logger.warning(f"{self.name} API error: HTTP {e.response.status_code}: {e.response.text[:200]}")
-            # Re-raise the exception so the circuit breaker can catch it
+            self.production_logger.log_api_call(
+                provider_name=self.name,
+                endpoint=endpoint,
+                success=False,
+                response_time_ms=int((datetime.now(UTC) - start_time).total_seconds() * 1000),
+                error_message=f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+            )
             raise e
 
         except Exception as e:
-            logger.error(f"{self.name} API network error: {str(e)}")
-            # Re-raise the exception so the circuit breaker can catch it
+            self.production_logger.log_api_call(
+                provider_name=self.name,
+                endpoint=endpoint,
+                success=False,
+                response_time_ms=int((datetime.now(UTC) - start_time).total_seconds() * 1000),
+                error_message=str(e)
+            )
             raise e
 
     async def close(self):

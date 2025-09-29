@@ -1,15 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from decimal import Decimal
 import logging
+import time
 
 from app.api.dependencies import get_rate_aggregator
 from app.api.models.requests import ConvertRequest
 from app.api.models.responses import ConvertResponse, ErrorResponse
 from app.services.rate_aggregator import RateAggregatorService
 from app.utils.time import adjust_timestamp
+from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
+
+production_logger = get_production_logger()
 
 
-logger = logging.getLogger(__name__)
+
 
 
 router = APIRouter(prefix="/api/v1", tags=["conversion"])
@@ -33,7 +37,13 @@ async def convert_currency(
     Convert currency amount using current exchange rates.
     """
     try:
-        logger.info(f"Converting {request.amount} {request.from_currency} to {request.to_currency}")
+        start_time = time.time()
+        production_logger.log_user_request(
+            endpoint="/convert",
+            request_data=request.dict(),
+            success=True, # Will be updated on failure
+            response_time_ms=0 # Will be updated
+        )
 
         # Get exchange rate results using rate aggregator
         rate_result = await rate_service.get_exchange_rate(
@@ -45,10 +55,12 @@ async def convert_currency(
         converted_amount = request.amount * rate_result.rate
         converted_amount = round(converted_amount, 2)
 
-        logger.info(
-            f"Conversion successful: {request.amount} {request.from_currency} = "
-            f"{converted_amount} {request.to_currency} (rate: {rate_result.rate}, "
-            f"confidence: {rate_result.confidence_level})"
+        duration_ms = (time.time() - start_time) * 1000
+        production_logger.log_user_request(
+            endpoint="/convert",
+            request_data=request.dict(),
+            success=True,
+            response_time_ms=duration_ms
         )
 
         return ConvertResponse(
@@ -63,14 +75,27 @@ async def convert_currency(
     except HTTPException:
         raise
     except ValueError as e:
-        logger.error(f"Rate fetch failed for {request.from_currency}->{request.to_currency}: {e}")
+        duration_ms = (time.time() - start_time) * 1000
+        production_logger.log_user_request(
+            endpoint="/convert",
+            request_data=request.dict(),
+            success=False,
+            response_time_ms=duration_ms,
+            error_message=str(e)
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Currency validation failed: {e}"
         )
     except Exception as e:
-        # Log the real error for debugging
-        logger.error(f"Currency conversion failed for {request.from_currency}->{request.to_currency}: {e}")
+        duration_ms = (time.time() - start_time) * 1000
+        production_logger.log_user_request(
+            endpoint="/convert",
+            request_data=request.dict(),
+            success=False,
+            response_time_ms=duration_ms,
+            error_message=str(e)
+        )
         
         # Return generic error to user
         raise HTTPException(
@@ -99,6 +124,7 @@ async def convert_currency_get(
     Example: GET /api/v1/convert/USD/EUR/100
     """
     try:
+        start_time = time.time()
         # Validate and create request object
         request = ConvertRequest(
             from_currency=from_currency,
@@ -109,14 +135,35 @@ async def convert_currency_get(
         # Use the same logic as POST endpoint
         return await convert_currency(request, rate_service)
     except ValueError as e:
-        # Handle validation errors from ConvertRequest
-        logger.warning(f"Invalid conversion parameters: {e}")
+        duration_ms = (time.time() - start_time) * 1000
+        production_logger.log_user_request(
+            endpoint="/convert/{from_currency}/{to_currency}/{amount}",
+            request_data={
+                'from_currency': from_currency,
+                'to_currency': to_currency,
+                'amount': amount
+            },
+            success=False,
+            response_time_ms=duration_ms,
+            error_message=f"Invalid conversion parameters: {e}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid currency codes or amount"
         )
     except Exception as e:
-        logger.error(f"GET conversion failed: {e}")
+        duration_ms = (time.time() - start_time) * 1000
+        production_logger.log_user_request(
+            endpoint="/convert/{from_currency}/{to_currency}/{amount}",
+            request_data={
+                'from_currency': from_currency,
+                'to_currency': to_currency,
+                'amount': amount
+            },
+            success=False,
+            response_time_ms=duration_ms,
+            error_message=str(e)
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporarily unavailable"

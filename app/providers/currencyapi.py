@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 from .base import APIProvider, ExchangeRateResponse, APICallResult
 
-logger = logging.getLogger(__name__)
+
 
 
 class CurrencyAPIProvider(APIProvider):
@@ -82,7 +82,15 @@ class CurrencyAPIProvider(APIProvider):
             )
         
         except Exception as e:
-            logger.error(f"Failed to parse {self.name} response: {e}")
+            self.production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.API_CALL,
+                    level=LogLevel.ERROR,
+                    message=f"Failed to parse {self.name} response: {e}",
+                    timestamp=datetime.now(UTC),
+                    error_context={'error': str(e), 'raw_response': response_data}
+                )
+            )
             return ExchangeRateResponse(
                 base_currency=base,
                 target_currency=target,
