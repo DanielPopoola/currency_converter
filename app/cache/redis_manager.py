@@ -69,7 +69,6 @@ class RedisManager:
                 cache_key=self._get_rate_cache_key(base, target),
                 hit=False,
                 duration_ms=0,
-                error_message=str(e)
             )
             return False
         
@@ -106,7 +105,6 @@ class RedisManager:
                 cache_key=self._get_rate_cache_key(base, target),
                 hit=False,
                 duration_ms=duration_ms,
-                error_message=str(e)
             )
             return None
 
@@ -165,7 +163,6 @@ class RedisManager:
                 cache_key=cache_key,
                 hit=False,
                 duration_ms=duration_ms,
-                error_message=f"Corrupted cache data: {e}"
             )
             return None
         except Exception as e:
@@ -281,7 +278,8 @@ class RedisManager:
                         'failure_count': new_count
                     }
                 )
-            )            return new_count
+            )
+            return new_count
         except Exception as e:
             self.production_logger.log_event(
                 LogEvent(
@@ -310,8 +308,8 @@ class RedisManager:
                         'provider_id': provider_id
                     }
                 )
-            )            return True
-            
+            )            
+            return True
         except Exception as e:
             self.production_logger.log_event(
                 LogEvent(
@@ -322,6 +320,7 @@ class RedisManager:
                     error_context={'error': str(e)}
                 )
             )
+            return False
 
     async def get_last_failure_time(self, provider_id: int) -> str | None:
         """Get the timestamp of the last recorded failure."""
@@ -353,8 +352,6 @@ class RedisManager:
                 cache_key=self.TOP_CURRENCIES_KEY,
                 hit=False,
                 duration_ms=0,
-                error_message=str(e),
-                timestamp=datetime.now()
             )
             return []
 
@@ -374,8 +371,6 @@ class RedisManager:
                 cache_key=self.TOP_CURRENCIES_KEY,
                 hit=False,
                 duration_ms=0,
-                error_message=str(e),
-                timestamp=datetime.now()
             )
 
 
@@ -409,7 +404,6 @@ class RedisManager:
                     cache_key=pattern,
                     hit=False,
                     duration_ms=0,
-                    timestamp=datetime.now()
                 )
                 return deleted
             return 0
@@ -419,8 +413,6 @@ class RedisManager:
                 cache_key=pattern,
                 hit=False,
                 duration_ms=0,
-                error_message=str(e),
-                timestamp=datetime.now()
             )
             return 0
 

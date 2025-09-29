@@ -8,6 +8,8 @@ from app.providers.base import APICallResult, ExchangeRateResponse
 from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerError
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
+from app.services import CircuitBreaker, CurrencyManager
+
 
 
 class TestRateAggregatorHappyPath:
@@ -35,12 +37,15 @@ class TestRateAggregatorHappyPath:
         # Mock Redis and DB
         mock_redis = AsyncMock(spec=RedisManager)
         mock_db = MagicMock(spec=DatabaseManager)
+        mock_currency_manager = AsyncMock(spec=CurrencyManager)
+        mock_currency_manager.validate_currencies.return_value = (True, None)
 
         return {
             "providers": providers,
             "circuit_breakers": circuit_breakers,
             "redis_manager": mock_redis,
-            "db_manager": mock_db
+            "db_manager": mock_db,
+            "currency_manager": mock_currency_manager
         }
     
     @pytest.fixture
@@ -51,6 +56,7 @@ class TestRateAggregatorHappyPath:
             circuit_breakers=mock_dependencies["circuit_breakers"],
             redis_manager=mock_dependencies["redis_manager"],
             db_manager=mock_dependencies["db_manager"],
+            currency_manager=mock_dependencies["currency_manager"],
             primary_provider="FixerIO"
         )
     
@@ -168,12 +174,15 @@ class TestRateAggregatorFailureScenarios:
         circuit_breakers = {"FixerIO": AsyncMock(), "OpenExchange": AsyncMock()}
         mock_redis = AsyncMock()
         mock_db = Mock()
+        mock_currency_manager = AsyncMock()
+        mock_currency_manager.validate_currencies.return_value = (True, None)
         
         aggregator = RateAggregatorService(
             providers=providers,
             circuit_breakers=circuit_breakers,
             redis_manager=mock_redis,
             db_manager=mock_db,
+            currency_manager=mock_currency_manager,
             primary_provider="FixerIO"
         )
         
@@ -342,12 +351,15 @@ class TestRateAggregatorCachingLogic:
         circuit_breakers = {"FixerIO": AsyncMock()}
         mock_redis = AsyncMock()
         mock_db = Mock()
+        mock_currency_manager = AsyncMock()
+        mock_currency_manager.validate_currencies.return_value = (True, None)
 
         aggregator = RateAggregatorService(
             providers=providers,
             circuit_breakers=circuit_breakers, 
             redis_manager=mock_redis,
             db_manager=mock_db,
+            currency_manager=mock_currency_manager,
             primary_provider="FixerIO"
         )
         
@@ -432,12 +444,15 @@ class TestRateAggregatorEdgeCases:
         circuit_breakers = {"FixerIO": AsyncMock()}
         mock_redis = AsyncMock()
         mock_db = Mock()
+        mock_currency_manager = AsyncMock()
+        mock_currency_manager.validate_currencies.return_value = (True, None)
         
         aggregator = RateAggregatorService(
             providers=providers,
             circuit_breakers=circuit_breakers,
             redis_manager=mock_redis,
-            db_manager=mock_db
+            db_manager=mock_db,
+            currency_manager=mock_currency_manager
         )
         
         mock_redis.get_cached_rate.return_value = None
@@ -464,12 +479,15 @@ class TestRateAggregatorEdgeCases:
         circuit_breakers = {"FixerIO": AsyncMock()}
         mock_redis = AsyncMock()
         mock_db = Mock()
+        mock_currency_manager = AsyncMock()
+        mock_currency_manager.validate_currencies.return_value = (True, None)
         
         aggregator = RateAggregatorService(
             providers=providers,
             circuit_breakers=circuit_breakers,
             redis_manager=mock_redis,
-            db_manager=mock_db
+            db_manager=mock_db,
+            currency_manager=mock_currency_manager
         )
         
         mock_redis.get_cached_rate.return_value = None
@@ -517,12 +535,15 @@ class TestRateAggregatorIntegration:
         circuit_breakers = {name: AsyncMock() for name in providers.keys()}
         mock_redis = AsyncMock()
         mock_db = Mock()
+        mock_currency_manager = AsyncMock()
+        mock_currency_manager.validate_currencies.return_value = (True, None)
         
         aggregator = RateAggregatorService(
             providers=providers,
             circuit_breakers=circuit_breakers,
             redis_manager=mock_redis,
             db_manager=mock_db,
+            currency_manager=mock_currency_manager,
             primary_provider="FixerIO"
         )
         

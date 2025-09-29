@@ -34,7 +34,7 @@ class ConcreteProvider(APIProvider):
             base_currency=base,
             target_currency=target,
             rate=1.0,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             provider_name=self.name,
             raw_response=response_data
         )
@@ -192,7 +192,7 @@ class TestExchangeRateResponse:
             base_currency="USD",
             target_currency="EUR",
             rate=0.85,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             provider_name="TestProvider",
             raw_response={"test": "data"}
         )
@@ -209,7 +209,7 @@ class TestExchangeRateResponse:
             base_currency="USD",
             target_currency="EUR", 
             rate=0.0,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             provider_name="TestProvider",
             raw_response={"error": "test"},
             is_successful=False,

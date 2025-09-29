@@ -90,7 +90,7 @@ class APIProvider(ABC):
             response = await self.client.get(url)
             response.raise_for_status()  # Raises HTTPStatusError for 4xx/5xx responses
 
-            response_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+            response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
             return APICallResult(
                 provider_name=self.name,
@@ -116,7 +116,7 @@ class APIProvider(ABC):
                 provider_name=self.name,
                 endpoint=endpoint,
                 success=False,
-                response_time_ms=int((datetime.now(UTC) - start_time).total_seconds() * 1000),
+                response_time_ms=int((datetime.now() - start_time).total_seconds() * 1000),
                 error_message=f"HTTP {e.response.status_code}: {e.response.text[:200]}"
             )
             raise e
@@ -126,7 +126,7 @@ class APIProvider(ABC):
                 provider_name=self.name,
                 endpoint=endpoint,
                 success=False,
-                response_time_ms=int((datetime.now(UTC) - start_time).total_seconds() * 1000),
+                response_time_ms=int((datetime.now() - start_time).total_seconds() * 1000),
                 error_message=str(e)
             )
             raise e
