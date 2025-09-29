@@ -11,16 +11,16 @@ from fastapi.exceptions import ValidationException
 from app.api.routes import convert, rates, health
 from app.services.service_factory import service_factory
 from app.config.database import DatabaseManager
+from app.monitoring.logger import get_production_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize logger
+    get_production_logger()
     logger.info("Starting Currency Converter API...")
 
     try:
