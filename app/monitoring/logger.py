@@ -13,10 +13,12 @@ import time
 
 
 class CustomJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return str(obj)
-        return super().default(obj)
+    def default(self, o):
+        if isinstance(o, datetime):
+            return o.isoformat()
+        if isinstance(o, Decimal):
+            return str(o)
+        return super().default(o)
 
 
 class JSONFormatter(logging.Formatter):
