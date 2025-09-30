@@ -264,11 +264,16 @@ class ProductionLogger:
         self.log_event(event)
 
     def log_cache_operation(self, operation: str, cache_key: str, hit: bool, 
-                          duration_ms: float, data_age_minutes: Optional[int] = None):
+                          duration_ms: float, data_age_minutes: Optional[int] = None,
+                          level: LogLevel = LogLevel.DEBUG, error_message: Optional[str] = None):
+        message = f"Cache {operation} for {cache_key}: {'HIT' if hit else 'MISS'}"
+        if error_message:
+            message += f" - ERROR: {error_message}"
+
         event = LogEvent(
             event_type=EventType.CACHE_OPERATION,
-            level=LogLevel.DEBUG,
-            message=f"Cache {operation} for {cache_key}: {'HIT' if hit else 'MISS'}",
+            level=level,
+            message=message,
             timestamp=datetime.now(),
             duration_ms=duration_ms,
             performance_context={
@@ -277,7 +282,8 @@ class ProductionLogger:
                 "hit": hit,
                 "duration_ms": duration_ms,
                 "data_age_minutes": data_age_minutes
-            }
+            },
+            error_context={"error_message": error_message} if error_message else None
         )
         self.log_event(event)
     
