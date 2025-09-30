@@ -1,8 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 def get_adjusted_timestamp() -> datetime:
     """Returns the current UTC time plus one hour."""
-    return datetime.utcnow() + timedelta(hours=1)
+    return datetime.now(UTC) + timedelta(hours=1)
 
 def adjust_timestamp(dt: datetime) -> datetime:
     """Adds one hour to a given datetime object."""
