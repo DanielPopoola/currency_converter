@@ -316,7 +316,6 @@ class CurrencyManager:
                 to_currency=target,
                 validation_result=validation_result,
                 duration_ms=duration_ms,
-                timestamp=datetime.now()
             )
             
             # Fail open - let API calls proceed

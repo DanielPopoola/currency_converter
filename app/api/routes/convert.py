@@ -131,37 +131,10 @@ async def convert_currency_get(
 
         # Use the same logic as POST endpoint
         return await convert_currency(request, rate_service)
-    except ValueError as e:
-        duration_ms = (time.time() - start_time) * 1000
-        production_logger.log_user_request(
-            endpoint=f"/convert/{from_currency}/{to_currency}/{amount}",
-            request_data={
-                'from_currency': from_currency,
-                'to_currency': to_currency,
-                'amount': amount
-            },
-            success=False,
-            response_time_ms=duration_ms,
-            error_message=f"Invalid conversion parameters: {e}"
-        )
+    except HTTPException:
+        raise
+    except ValueError as e:        
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid currency codes or amount"
-        )
-    except Exception as e:
-        duration_ms = (time.time() - start_time) * 1000
-        production_logger.log_user_request(
-            endpoint=f"/convert/{from_currency}/{to_currency}/{amount}",
-            request_data={
-                'from_currency': from_currency,
-                'to_currency': to_currency,
-                'amount': amount
-            },
-            success=False,
-            response_time_ms=duration_ms,
-            error_message=str(e)
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable"
         )
