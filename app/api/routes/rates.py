@@ -36,11 +36,11 @@ async def get_exchange_rate(
     This endpoint just returns the rate (e.g., 1 USD = 0.8550 EUR)
     without doing any amount conversion.
     """
+    start_time = time.time()
     try:
-        start_time = time.time()
         production_logger.log_user_request(
             endpoint="/rates",
-            request_data=request.dict(),
+            request_data=request.model_dump(),
             success=True, # Will be updated on failure
             response_time_ms=0 # Will be updated
         )
@@ -54,7 +54,7 @@ async def get_exchange_rate(
         duration_ms = (time.time() - start_time) * 1000
         production_logger.log_user_request(
             endpoint="/rates",
-            request_data=request.dict(),
+            request_data=request.model_dump(),
             success=True,
             response_time_ms=duration_ms
         )
@@ -73,7 +73,7 @@ async def get_exchange_rate(
         duration_ms = (time.time() - start_time) * 1000
         production_logger.log_user_request(
             endpoint="/rates",
-            request_data=request.dict(),
+            request_data=request.model_dump(),
             success=False,
             response_time_ms=duration_ms,
             error_message=str(e)
@@ -86,7 +86,7 @@ async def get_exchange_rate(
         duration_ms = (time.time() - start_time) * 1000
         production_logger.log_user_request(
             endpoint="/rates",
-            request_data=request.dict(),
+            request_data=request.model_dump(),
             success=False,
             response_time_ms=duration_ms,
             error_message=str(e)
@@ -117,8 +117,8 @@ async def get_exchange_rate_get(
     GET version of exchange rate fetching.
     Example: GET /api/v1/rates/USD/EUR
     """
+    start_time = time.time()
     try:
-        start_time = time.time()
         # Validate and create request object
         request = ExchangeRateRequest(
             from_currency=from_currency,
