@@ -7,6 +7,7 @@ from typing import Any
 
 
 from .base import APICallResult, APIProvider, ExchangeRateResponse
+from app.monitoring.logger import EventType, LogEvent, LogLevel
 
 
 class FixerIOProvider(APIProvider):

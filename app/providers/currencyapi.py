@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Any, Dict
 
 from .base import APIProvider, ExchangeRateResponse, APICallResult
+from app.monitoring.logger import EventType, LogEvent, LogLevel
 
 
 

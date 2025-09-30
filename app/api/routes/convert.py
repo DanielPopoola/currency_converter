@@ -55,7 +55,7 @@ async def convert_currency(
         duration_ms = (time.time() - start_time) * 1000
         production_logger.log_user_request(
             endpoint="/convert",
-            request_data=request.dict(),
+            request_data=request.model_dump(),
             success=True,
             response_time_ms=duration_ms
         )

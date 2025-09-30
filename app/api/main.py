@@ -149,14 +149,11 @@ async def root():
         "timestamp": datetime.now().isoformat()
     }
 
+"""
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """Log all HTTP requests for monitoring and debugging"""
     start_time = datetime.now()
-    
-    # Log request
-    logger.info(f"➡️  {request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
-    
+
     # Process request
     response = await call_next(request)
         
@@ -168,7 +165,7 @@ async def log_requests(request: Request, call_next):
     logger.info(f"⬅️  {status_emoji} {response.status_code} {request.method} {request.url.path} ({response_time:.2f}ms)")
     
     return response
-
+"""
 
 if __name__ == "__main__":
     import uvicorn

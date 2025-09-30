@@ -15,7 +15,7 @@ class ConvertResponse(BaseModel):
     confidence_level: str = Field(..., description="Data confidence level (high/medium/low)")
     timestamp: datetime = Field(..., description="When the rate was fetched")
 
-    class Config:
+    class ConfigDict:
         json_schema_extra = {
             "example": {
                 "from_currency": "USD",
@@ -37,7 +37,7 @@ class ExchangeRateResponse(BaseModel):
     confidence_level: str = Field(..., description="Data confidence level")
     timestamp: datetime = Field(..., description="When the rate was fetched")
 
-    class Config:
+    class ConfigDict:
         json_schema_extra = {
             "example": {
                 "from_currency": "USD", 
@@ -56,7 +56,7 @@ class HealthResponse(BaseModel):
     timestamp: datetime = Field(..., description="When health check was performed")
     services: Dict[str, Any] = Field(..., description="Status of individual services")
     
-    class Config:
+    class ConfigDict:
         json_schema_extra = {
             "example": {
                 "status": "healthy",
@@ -80,7 +80,7 @@ class ErrorResponse(BaseModel):
     message: str = Field(..., description="Human-readable error message") 
     timestamp: datetime = Field(default_factory=lambda: datetime.now(), description="When error occurred")
     
-    class Config:
+    class ConfigDict:
         json_schema_extra = {
             "example": {
                 "error": "service_unavailable",

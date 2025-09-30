@@ -27,7 +27,7 @@ class ConvertRequest(BaseModel):
             raise ValueError('from_currency and to_currency must be different')
         return v
     
-    class Config:
+    class ConfigDict:
         json_schema_extra = {
             "example": {
                 "from_currency": "USD",
@@ -54,7 +54,7 @@ class ExchangeRateRequest(BaseModel):
             raise ValueError('from_currency and to_currency must be different')
         return v
 
-    class Config:
+    class ConfigDict:
         json_schema_extra = {
             "example": {
                 "from_currency": "USD",

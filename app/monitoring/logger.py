@@ -209,7 +209,7 @@ class ProductionLogger:
         event = LogEvent(
             event_type=EventType.CURRENCY_VALIDATION,
             level=LogLevel.INFO if validation_result['valid'] else LogLevel.WARNING,
-            message=f"Currency validation: {from_currency}->{to_currency} ({'valid' if validation_result['valid'] else 'invalid'})",
+            message=f"Currency validation: {from_currency}->{to_currency} ({'valid' if validation_result['valid'] else 'invalid -not yet in validation cache'})",
             timestamp=datetime.now(),
             duration_ms=duration_ms,
             user_context={
