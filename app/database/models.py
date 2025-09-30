@@ -7,6 +7,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    DateTime,
     UniqueConstraint,
 )
 from sqlalchemy.orm import declarative_base, relationship
@@ -132,4 +133,9 @@ class SupportedCurrency(Base):
     name = Column(String(100), nullable=True)  # US Dollar, Euro
     is_popular = Column(Boolean, default=False)  # For your top 10 cache
     provider_count = Column(Integer, default=1)  # How many APIs support it
+    last_updated = Column(
+        DateTime(timezone=True), 
+        server_default=func.now(),
+        onupdate=func.now()  # Automatically update timestamp on changes
+    )
     created_at = Column(TIMESTAMP, default=func.now())
