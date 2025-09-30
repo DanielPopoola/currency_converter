@@ -135,7 +135,7 @@ class CurrencyManager:
         log_context = {"check_reason": None, "database_count": 0, "data_age_days": None}
 
         try:
-            Session = sessionmaker(bin=self.db_manager.engine)
+            Session = sessionmaker(bind=self.db_manager.engine)
             with Session() as session:
                 # Check if there are any currencies in the database
                 count = session.query(func.count(SupportedCurrency.code)).scalar()

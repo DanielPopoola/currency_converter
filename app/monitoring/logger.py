@@ -73,6 +73,8 @@ class AppLogger:
         root_logger.handlers.clear()
         root_logger.setLevel(logging.DEBUG)
 
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+
         self._setup_console_handler(root_logger)
         self._setup_main_file_handler(root_logger)
         self._setup_error_file_handler(root_logger)
