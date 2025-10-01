@@ -1,4 +1,3 @@
-import logging
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -8,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
 from app.database.models import SupportedCurrency
-from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
+from app.monitoring.logger import logger
 from app.providers.base import APIProvider
 
 
@@ -16,7 +15,7 @@ class CurrencyManager:
     def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager):
         self.db_manager = db_manager
         self.redis_manager = redis_manager
-        self.production_logger = get_production_logger()
+        self.logger = logger.bind(service="CurrencyManager")
         self.TOP_CURRENCIES_KEY = "supported_currencies:top"
         self.ALL_CURRENCIES_KEY = "supported_currencies:all"
         self.VALIDATION_CACHE_KEY = "currency_validation:{}"
@@ -35,18 +34,13 @@ class CurrencyManager:
         all_currencies = set()
         provider_currency_counts = {}
 
-        self.production_logger.log_event(
-            LogEvent(
-                event_type=EventType.API_CALL,
-                level=LogLevel.INFO,
-                message=f"Starting currency population from {len(providers)} providers",
-                timestamp=datetime.now(),
-                api_context={
-                    "operation": "populate_currencies",
-                    "provider_count": len(providers),
-                    "providers": list(providers.keys())
-                }
-            )
+        self.logger.info(
+            "Starting currency population from {provider_count} providers",
+            operation="populate_currencies",
+            provider_count=len(providers),
+            providers=list(providers.keys()),
+            event_type="API_CALL",
+            timestamp=datetime.now()
         )
         
         for provider_name, provider in providers.items():
@@ -60,30 +54,39 @@ class CurrencyManager:
                     provider_currency_counts[provider_name] = len(currencies)
 
                     # Log successful provider fetch
-                    self.production_logger.log_api_call(
+                    self.logger.info(
+                        "API call successful: get_supported_currencies",
                         provider_name=provider_name,
                         endpoint="get_supported_currencies",
                         success=True,
                         response_time_ms=provider_duration,
-                        rate_data={"currency_count": len(currencies)}
+                        currency_count=len(currencies),
+                        event_type="API_CALL",
+                        timestamp=datetime.now()
                     )
                 else:
                     # Log provider failure
-                    self.production_logger.log_api_call(
+                    self.logger.error(
+                        "API call failed: get_supported_currencies",
                         provider_name=provider_name,
                         endpoint="get_supported_currencies", 
                         success=False,
                         response_time_ms=provider_duration,
-                        error_message=result.error_message or "No currencies returned"
+                        error_message=result.error_message or "No currencies returned",
+                        event_type="API_CALL",
+                        timestamp=datetime.now()
                     )
             except Exception as e:
                 provider_duration = (time.time() - provider_start) * 1000
-                self.production_logger.log_api_call(
+                self.logger.error(
+                    "API call failed unexpectedly: get_supported_currencies",
                     provider_name=provider_name,
                     endpoint="get_supported_currencies",
                     success=False,
                     response_time_ms=provider_duration,
-                    error_message=str(e)
+                    error_message=str(e),
+                    event_type="API_CALL",
+                    timestamp=datetime.now()
                 )
 
         total_duration = (time.time() - start_time) * 1000
@@ -92,37 +95,27 @@ class CurrencyManager:
             await self._store_currencies_in_db(all_currencies)
             await self._cache_top_currencies()
             # Log successful completion
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.API_CALL,
-                    level=LogLevel.INFO,
-                    message=f"Currency population completed: {len(all_currencies)} total currencies",
-                    timestamp=datetime.now(),
-                    duration_ms=total_duration,
-                    api_context={
-                        "operation": "populate_currencies_complete",
-                        "total_currencies": len(all_currencies),
-                        "provider_breakdown": provider_currency_counts,
-                        "successful_providers": len([p for p in provider_currency_counts if provider_currency_counts[p] > 0])
-                    },
-                    performance_context={
-                        "total_duration_ms": total_duration,
-                        "database_store_completed": True,
-                        "cache_update_completed": True
-                    }
-                )
+            self.logger.info(
+                "Currency population completed: {total_currencies} total currencies",
+                operation="populate_currencies_complete",
+                total_currencies=len(all_currencies),
+                provider_breakdown=provider_currency_counts,
+                successful_providers=len([p for p in provider_currency_counts if provider_currency_counts[p] > 0]),
+                event_type="API_CALL",
+                timestamp=datetime.now(),
+                duration_ms=total_duration,
+                database_store_completed=True,
+                cache_update_completed=True
             )
             
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.API_CALL,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to store/cache currencies: {str(e)}",
-                    timestamp=datetime.now(),
-                    duration_ms=total_duration,
-                    error_context={"storage_error": str(e)}
-                )
+            self.logger.error(
+                "Failed to store/cache currencies: {error}",
+                error=str(e),
+                event_type="API_CALL",
+                timestamp=datetime.now(),
+                duration_ms=total_duration,
+                storage_error=str(e)
             )
         
         return list(all_currencies)
@@ -142,15 +135,13 @@ class CurrencyManager:
                 if count == 0:
                     reason = "No currencies found in database"
                     log_context["check_reason"] = reason
-                    self.production_logger.log_event(
-                        LogEvent(
-                            event_type=EventType.DATABASE_OPERATION,
-                            level=LogLevel.INFO,
-                            message=f"Currency population check: {reason}",
-                            timestamp=datetime.now(),
-                            duration_ms=(time.time() - start_time) * 1000,
-                            api_context=log_context,
-                        )
+                    self.logger.info(
+                        "Currency population check: {reason}",
+                        reason=reason,
+                        event_type="DATABASE_OPERATION",
+                        timestamp=datetime.now(),
+                        duration_ms=(time.time() - start_time) * 1000,
+                        log_context=log_context,
                     )
                     return True, reason
                 
@@ -161,15 +152,13 @@ class CurrencyManager:
                 if last_updated is None:
                     reason = "No last_updated timestamp found"
                     log_context["check_reason"] = reason
-                    self.production_logger.log_event(
-                        LogEvent(
-                            event_type=EventType.DATABASE_OPERATION,
-                            level=LogLevel.WARNING,
-                            message=f"Currency population check: {reason}",
-                            timestamp=datetime.now(),
-                            duration_ms=(time.time() - start_time) * 1000,
-                            api_context=log_context,
-                        )
+                    self.logger.warning(
+                        "Currency population check: {reason}",
+                        reason=reason,
+                        event_type="DATABASE_OPERATION",
+                        timestamp=datetime.now(),
+                        duration_ms=(time.time() - start_time) * 1000,
+                        log_context=log_context,
                     )
                     return True, reason
                 
@@ -179,44 +168,38 @@ class CurrencyManager:
                 if age > timedelta(days=self.REFRESH_INTERVAL_DAYS):
                     reason = f"Data is {age.days} days old (threshold: {self.REFRESH_INTERVAL_DAYS} days)"
                     log_context["check_reason"] = reason
-                    self.production_logger.log_event(
-                        LogEvent(
-                            event_type=EventType.DATABASE_OPERATION,
-                            level=LogLevel.INFO,
-                            message=f"Currency population check: Stale data, refresh needed. Reason: {reason}",
-                            timestamp=datetime.now(),
-                            duration_ms=(time.time() - start_time) * 1000,
-                            api_context=log_context,
-                        )
+                    self.logger.info(
+                        "Currency population check: Stale data, refresh needed. Reason: {reason}",
+                        reason=reason,
+                        event_type="DATABASE_OPERATION",
+                        timestamp=datetime.now(),
+                        duration_ms=(time.time() - start_time) * 1000,
+                        log_context=log_context,
                     )
                     return True, reason
 
                 reason = f"Database has {count} currencies, {age.days} days old. No refresh needed."
                 log_context["check_reason"] = reason
-                self.production_logger.log_event(
-                    LogEvent(
-                        event_type=EventType.DATABASE_OPERATION,
-                        level=LogLevel.INFO,
-                        message=f"Currency population check: No refresh needed. Reason: {reason}",
-                        timestamp=datetime.now(),
-                        duration_ms=(time.time() - start_time) * 1000,
-                        api_context=log_context,
-                    )
+                self.logger.info(
+                    "Currency population check: No refresh needed. Reason: {reason}",
+                    reason=reason,
+                    event_type="DATABASE_OPERATION",
+                    timestamp=datetime.now(),
+                    duration_ms=(time.time() - start_time) * 1000,
+                    log_context=log_context,
                 )
                 return False, reason
             
         except Exception as e:
             reason = f"Database check failed: {e}"
             log_context["check_reason"] = "Exception"
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.DATABASE_OPERATION,
-                    level=LogLevel.ERROR,
-                    message="Currency population check failed.",
-                    timestamp=datetime.now(),
-                    duration_ms=(time.time() - start_time) * 1000,
-                    error_context={"error": str(e), "details": log_context},
-                )
+            self.logger.error(
+                "Currency population check failed: {error}",
+                error=str(e),
+                event_type="DATABASE_OPERATION",
+                timestamp=datetime.now(),
+                duration_ms=(time.time() - start_time) * 1000,
+                log_context=log_context,
             )
             return True, reason
 
@@ -230,24 +213,20 @@ class CurrencyManager:
         should_populate, reason = await self.should_populate_currencies()
         
         if should_populate:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.SERVICE_LIFECYCLE,
-                    level=LogLevel.INFO,
-                    message=f"Initiating currency population. Reason: {reason}",
-                    timestamp=datetime.now(),
-                )
+            self.logger.info(
+                "Initiating currency population. Reason: {reason}",
+                reason=reason,
+                event_type="SERVICE_LIFECYCLE",
+                timestamp=datetime.now()
             )
             await self.populate_supported_currencies(providers)
             return True
         else:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.SERVICE_LIFECYCLE,
-                    level=LogLevel.INFO,
-                    message=f"Skipping currency population. Reason: {reason}",
-                    timestamp=datetime.now(),
-                )
+            self.logger.info(
+                "Skipping currency population. Reason: {reason}",
+                reason=reason,
+                event_type="SERVICE_LIFECYCLE",
+                timestamp=datetime.now()
             )
             return False
         
@@ -264,27 +243,25 @@ class CurrencyManager:
                     session.add(new_currency)
                     new_currencies_count += 1
             session.commit()
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.DATABASE_OPERATION,
-                    level=LogLevel.INFO,
-                    message=f"Stored {new_currencies_count} new currencies out of {len(currencies)} total unique currencies in the database.",
-                    timestamp=datetime.now(),
-                    api_context={
-                        "new_currencies_added": new_currencies_count,
-                        "total_unique_currencies_processed": len(currencies),
-                    }
-                )
+            self.logger.info(
+                "Stored {new_currencies_count} new currencies out of {total_unique_currencies_processed} total unique currencies in the database.",
+                new_currencies_count=new_currencies_count,
+                total_unique_currencies_processed=len(currencies),
+                event_type="DATABASE_OPERATION",
+                timestamp=datetime.now()
             )
 
     async def _cache_top_currencies(self):
         """Select top N currencies and cache them in Redis."""
         await self.redis_manager.set_top_currencies(self.POPULAR_CURRENCIES)
-        self.production_logger.log_cache_operation(
+        self.logger.info(
+            "Cache operation: set_top_currencies",
             operation="set_top_currencies",
             cache_key=self.TOP_CURRENCIES_KEY,
             hit=False,
             duration_ms=0,
+            event_type="CACHE_OPERATION",
+            timestamp=datetime.now()
         )
 
     async def validate_currencies(self, base: str, target: str) -> tuple[bool, str | None]:
@@ -309,24 +286,27 @@ class CurrencyManager:
             cache_validation = await self.redis_manager.get_cached_currency(cache_key)
 
             if cache_validation:
-                self.production_logger.log_event(
-                    LogEvent(
-                        event_type=EventType.CACHE_OPERATION,
-                        level=LogLevel.DEBUG,
-                        message=f"Validation cache hit for {base}->{target}: {cache_validation}",
-                        timestamp=datetime.now()
-                    )
+                self.logger.debug(
+                    "Validation cache hit for {base_currency}->{target_currency}: {cache_validation}",
+                    base_currency=base,
+                    target_currency=target,
+                    cache_validation=cache_validation,
+                    event_type="CACHE_OPERATION",
+                    timestamp=datetime.now()
                 )
                 validation_result["cache_hit"] = True
                 validation_result["valid"] = cache_validation.get("valid", False)
                 duration_ms = (time.time() - start_time) * 1000
 
                 # Log cache hit
-                self.production_logger.log_currency_validation(
+                self.logger.info(
+                    "Currency validation from cache",
                     from_currency=base,
                     to_currency=target,
                     validation_result=validation_result,
                     duration_ms=duration_ms,
+                    event_type="CURRENCY_VALIDATION",
+                    timestamp=datetime.now()
                 )
 
                 if validation_result["valid"]:
@@ -348,11 +328,14 @@ class CurrencyManager:
                     await self._cache_validation_result(base, target, True, None)
 
                     duration_ms = (time.time() - start_time) * 1000
-                    self.production_logger.log_currency_validation(
+                    self.logger.info(
+                        "Currency validation from top currencies cache",
                         from_currency=base,
                         to_currency=target,
                         validation_result=validation_result,
-                        duration_ms=duration_ms
+                        duration_ms=duration_ms,
+                        event_type="CURRENCY_VALIDATION",
+                        timestamp=datetime.now()
                     )
                     
                     return True, None
@@ -391,26 +374,18 @@ class CurrencyManager:
                         await self._cache_validation_result(base, target, False, error_msg, ttl=300)
 
                         duration_ms = (time.time() - start_time) * 1000
-                        self.production_logger.log_currency_validation(
+                        self.logger.error(
+                            "Validation failed for {base_currency}->{target_currency}. Unsupported: {unsupported_currencies}",
                             from_currency=base,
                             to_currency=target,
                             validation_result=validation_result,
                             duration_ms=duration_ms,
-                        )
-                        
-                        self.production_logger.log_event(
-                            LogEvent(
-                                event_type=EventType.CURRENCY_VALIDATION,
-                                level=LogLevel.DEBUG,
-                                message=f"Validation failed for {base}->{target}. Unsupported: {unsupported}",
-                                timestamp=datetime.now(),
-                                api_context={
-                                    "base": base,
-                                    "target": target,
-                                    "unsupported": unsupported,
-                                    "supported_set_size": len(supported_set),
-                                },
-                            )
+                            base_currency=base,
+                            target_currency=target,
+                            unsupported_currencies=unsupported,
+                            supported_set_size=len(supported_set),
+                            event_type="CURRENCY_VALIDATION",
+                            timestamp=datetime.now()
                         )
                         return False, error_msg
 
@@ -424,50 +399,40 @@ class CurrencyManager:
                     await self._cache_validation_result(base, target, True, None)
 
                     duration_ms = (time.time() - start_time) * 1000
-                    self.production_logger.log_currency_validation(
+                    self.logger.info(
+                        "Validation successful for {base_currency}->{target_currency}",
                         from_currency=base,
                         to_currency=target,
                         validation_result=validation_result,
-                        duration_ms=duration_ms
-                    )
-                    
-                    self.production_logger.log_event(
-                        LogEvent(
-                            event_type=EventType.CURRENCY_VALIDATION,
-                            level=LogLevel.DEBUG,
-                            message=f"Validation successful for {base}->{target}",
-                            timestamp=datetime.now(),
-                            api_context={
-                                "base": base,
-                                "target": target,
-                                "supported_set_size": len(supported_set),
-                            },
-                        )
+                        duration_ms=duration_ms,
+                        base_currency=base,
+                        target_currency=target,
+                        supported_set_size=len(supported_set),
+                        event_type="CURRENCY_VALIDATION",
+                        timestamp=datetime.now()
                     )
                     return True, None
             except Exception as db_error:
-                self.production_logger.log_event(
-                    LogEvent(
-                        event_type=EventType.DATABASE_OPERATION,
-                        level=LogLevel.ERROR,
-                        message="Database error during currency validation",
-                        timestamp=datetime.now(),
-                        error_context={
-                            "error": str(db_error),
-                            "error_type": type(db_error).__name__,
-                        },
-                    )
+                self.logger.error(
+                    "Database error during currency validation: {error}",
+                    error=str(db_error),
+                    error_type=type(db_error).__name__,
+                    event_type="DATABASE_OPERATION",
+                    timestamp=datetime.now()
                 )
                 validation_result["error_details"] = {
                     "database_error": str(db_error)
                 }
                 duration_ms = (time.time() - start_time) * 1000
 
-                self.production_logger.log_currency_validation(
+                self.logger.error(
+                    "Currency validation database error",
                     from_currency=base,
                     to_currency=target,
                     validation_result=validation_result,
                     duration_ms=duration_ms,
+                    event_type="CURRENCY_VALIDATION",
+                    timestamp=datetime.now()
                 )
 
                 # Fail open - let API calls proceed and handle errors there
@@ -479,11 +444,15 @@ class CurrencyManager:
             }
             duration_ms = (time.time() - start_time) * 1000
             
-            self.production_logger.log_currency_validation(
+            self.logger.error(
+                "Generic exception during currency validation: {error}",
                 from_currency=base,
                 to_currency=target,
                 validation_result=validation_result,
                 duration_ms=duration_ms,
+                error=str(e),
+                event_type="CURRENCY_VALIDATION",
+                timestamp=datetime.now()
             )
             
             # Fail open - let API calls proceed
@@ -504,18 +473,23 @@ class CurrencyManager:
         
         try:
             await self.redis_manager.set_cache_validation_result(cache_key, ttl, cache_data)
-            self.production_logger.log_cache_operation(
-                operation="set_validation_result",
-                cache_key=cache_key,
-                hit=False, # This is a write operation
-                duration_ms=0, # Not measured here
-            )
-        except Exception as e:
-            self.production_logger.log_cache_operation(
+            self.logger.info(
+                "Cache operation: set_validation_result",
                 operation="set_validation_result",
                 cache_key=cache_key,
                 hit=False,
                 duration_ms=0,
-                level=LogLevel.ERROR,
+                event_type="CACHE_OPERATION",
+                timestamp=datetime.now()
+            )
+        except Exception as e:
+            self.logger.error(
+                "Cache operation error: set_validation_result",
+                operation="set_validation_result",
+                cache_key=cache_key,
+                hit=False,
+                duration_ms=0,
                 error_message=str(e),
+                event_type="CACHE_OPERATION",
+                timestamp=datetime.now()
             )

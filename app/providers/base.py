@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from app.monitoring.logger import get_production_logger
+from app.monitoring.logger import logger
 
 
 @dataclass
@@ -40,10 +40,10 @@ class APIProvider(ABC):
     """Abstract base class for all currency API providers"""
 
     def __init__(self, api_key: str, base_url: str, name: str, timeout: int = 3, extra_headers: dict = None):
-        self.production_logger = get_production_logger()
+        self.name = name
+        self.logger = logger.bind(service=self.name)
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
-        self.name = name
         self.timeout = timeout
 
         headers = {"accept": "application/json"}
@@ -101,32 +101,41 @@ class APIProvider(ABC):
             )
 
         except httpx.TimeoutException as e:
-            self.production_logger.log_api_call(
+            self.logger.error(
+                "API call timed out for {provider_name} at {endpoint}: {error_message}",
                 provider_name=self.name,
                 endpoint=endpoint,
                 success=False,
                 response_time_ms=self.timeout * 1000,
-                error_message=f"Timeout after {self.timeout}s"
+                error_message=f"Timeout after {self.timeout}s",
+                event_type="API_CALL",
+                timestamp=datetime.now()
             )
             raise e
 
         except httpx.HTTPStatusError as e:
-            self.production_logger.log_api_call(
+            self.logger.error(
+                "API call failed with HTTP status error for {provider_name} at {endpoint}: {error_message}",
                 provider_name=self.name,
                 endpoint=endpoint,
                 success=False,
                 response_time_ms=int((datetime.now() - start_time).total_seconds() * 1000),
-                error_message=f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+                error_message=f"HTTP {e.response.status_code}: {e.response.text[:200]}",
+                event_type="API_CALL",
+                timestamp=datetime.now()
             )
             raise e
 
         except Exception as e:
-            self.production_logger.log_api_call(
+            self.logger.error(
+                "API call failed unexpectedly for {provider_name} at {endpoint}: {error_message}",
                 provider_name=self.name,
                 endpoint=endpoint,
                 success=False,
                 response_time_ms=int((datetime.now() - start_time).total_seconds() * 1000),
-                error_message=str(e)
+                error_message=str(e),
+                event_type="API_CALL",
+                timestamp=datetime.now()
             )
             raise e
 

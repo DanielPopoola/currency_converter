@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -6,7 +5,7 @@ from typing import Any
 from app.cache.redis_manager import CircuitBreakerState, RedisManager
 from app.config.database import DatabaseManager
 from app.database.models import CircuitBreakerLog
-from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
+from app.monitoring.logger import logger
 
 
 class CircuitBreakerError(Exception):
@@ -42,7 +41,7 @@ class CircuitBreaker:
         self.success_threshold = success_threshold
 
         # Production Logger
-        self.production_logger = get_production_logger()
+        self.logger = logger.bind(service="CircuitBreaker", provider_name=self.provider_name)
 
         # Track consecutive successes in HALF_OPEN state
         self._consecutive_successes = 0
@@ -90,21 +89,23 @@ class CircuitBreaker:
             if self._consecutive_successes >= self.success_threshold:
                 # Enough successes - close the circuit
                 await self._transition_to_closed("recovery_successful")
-                self.production_logger.log_circuit_breaker_event(
-                    self.provider_name,
-                    "HALF_OPEN",
-                    "CLOSED",
-                    0,
-                    f"recovery_successful after {self._consecutive_successes} successes"
+                self.logger.info(
+                    "Circuit breaker state change: {old_state} -> {new_state}",
+                    old_state="HALF_OPEN",
+                    new_state="CLOSED",
+                    failure_count=0,
+                    reason=f"recovery_successful after {self._consecutive_successes} successes",
+                    event_type="CIRCUIT_BREAKER",
+                    timestamp=datetime.now()
                 )
             else:
-                self.production_logger.log_event(
-                    LogEvent(
-                        event_type=EventType.CIRCUIT_BREAKER,
-                        level=LogLevel.DEBUG,
-                        message=f"Circuit breaker HALF_OPEN for {self.provider_name}: {self._consecutive_successes}/{self.success_threshold} successes",
-                        timestamp=datetime.now(),
-                    )
+                self.logger.debug(
+                    "Circuit breaker HALF_OPEN for {provider_name}: {consecutive_successes}/{success_threshold} successes",
+                    provider_name=self.provider_name,
+                    consecutive_successes=self._consecutive_successes,
+                    success_threshold=self.success_threshold,
+                    event_type="CIRCUIT_BREAKER",
+                    timestamp=datetime.now()
                 )
         
         elif current_state == CircuitBreakerState.CLOSED:
@@ -129,13 +130,13 @@ class CircuitBreaker:
         if failure_count >= self.failure_threshold:
             await self._transition_to_open(f"{failure_count}_consecutive_failures")
         else:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CIRCUIT_BREAKER,
-                    level=LogLevel.WARNING,
-                    message=f"API failure for {self.provider_name}: {failure_count}/{self.failure_threshold}",
-                    timestamp=datetime.now(),
-                )
+            self.logger.warning(
+                "API failure for {provider_name}: {failure_count}/{failure_threshold}",
+                provider_name=self.provider_name,
+                failure_count=failure_count,
+                failure_threshold=self.failure_threshold,
+                event_type="CIRCUIT_BREAKER",
+                timestamp=datetime.now()
             )
 
     async def _should_attempt_reset(self):
@@ -153,35 +154,33 @@ class CircuitBreaker:
             has_enough_time_passed = time_since_failure.total_seconds() >= self.recovery_timeout
             
             if has_enough_time_passed:
-                self.production_logger.log_event(
-                    LogEvent(
-                        event_type=EventType.CIRCUIT_BREAKER,
-                        level=LogLevel.DEBUG,
-                        message=f"Recovery timeout passed for {self.provider_name}: {time_since_failure.total_seconds()}s >= {self.recovery_timeout}s",
-                        timestamp=datetime.now(),
-                    )
+                self.logger.debug(
+                    "Recovery timeout passed for {provider_name}: {time_since_failure_seconds}s >= {recovery_timeout}s",
+                    provider_name=self.provider_name,
+                    time_since_failure_seconds=time_since_failure.total_seconds(),
+                    recovery_timeout=self.recovery_timeout,
+                    event_type="CIRCUIT_BREAKER",
+                    timestamp=datetime.now()
                 )
                 return True
             else:
-                self.production_logger.log_event(
-                    LogEvent(
-                        event_type=EventType.CIRCUIT_BREAKER,
-                        level=LogLevel.DEBUG,
-                        message=f"Still in cooldown for {self.provider_name}: {time_since_failure.total_seconds()}s < {self.recovery_timeout}s",
-                        timestamp=datetime.now(),
-                    )
+                self.logger.debug(
+                    "Still in cooldown for {provider_name}: {time_since_failure_seconds}s < {recovery_timeout}s",
+                    provider_name=self.provider_name,
+                    time_since_failure_seconds=time_since_failure.total_seconds(),
+                    recovery_timeout=self.recovery_timeout,
+                    event_type="CIRCUIT_BREAKER",
+                    timestamp=datetime.now()
                 )
                 return False
                 
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CIRCUIT_BREAKER,
-                    level=LogLevel.ERROR,
-                    message=f"Error checking reset timeout for {self.provider_name}: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Error checking reset timeout for {provider_name}: {error}",
+                provider_name=self.provider_name,
+                error=str(e),
+                event_type="CIRCUIT_BREAKER",
+                timestamp=datetime.now()
             )
             # Fail safe - allow reset if we can't determine the time
             return True
@@ -222,22 +221,21 @@ class CircuitBreaker:
                 )
                 session.add(log_entry)
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.DATABASE_OPERATION,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to log circuit breaker state change to database: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Failed to log circuit breaker state change to database: {error}",
+                error=str(e),
+                event_type="DATABASE_OPERATION",
+                timestamp=datetime.now()
             )
         
-        self.production_logger.log_circuit_breaker_event(
-            self.provider_name,
-            current_state.value,
-            new_state.value,
-            failure_count,
-            reason
+        self.logger.info(
+            "Circuit breaker state change: {old_state} -> {new_state}",
+            old_state=current_state.value,
+            new_state=new_state.value,
+            failure_count=failure_count,
+            reason=reason,
+            event_type="CIRCUIT_BREAKER",
+            timestamp=datetime.now()
         )
     
     async def get_status(self) -> dict:
@@ -259,23 +257,20 @@ class CircuitBreaker:
     async def force_reset(self):
         """Manually reset circuit breaker (for admin/debugging)"""
         await self._transition_to_closed("manual_reset")
-        self.production_logger.log_event(
-            LogEvent(
-                event_type=EventType.CIRCUIT_BREAKER,
-                level=LogLevel.WARNING,
-                message=f"Circuit breaker manually closed for {self.provider_name}: manual reset",
-                timestamp=datetime.now()
-            )
+        self.logger.warning(
+            "Circuit breaker manually closed for {provider_name}: manual reset",
+            provider_name=self.provider_name,
+            event_type="CIRCUIT_BREAKER",
+            timestamp=datetime.now()
         )
     
     async def force_open(self, reason: str = "manual_open"):
         """Manually open circuit breaker (for maintenance)"""  
         await self._transition_to_open(reason)
-        self.production_logger.log_event(
-            LogEvent(
-                event_type=EventType.CIRCUIT_BREAKER,
-                level=LogLevel.WARNING,
-                message=f"Circuit breaker manually opened for {self.provider_name}: {reason}",
-                timestamp=datetime.now()
-            )
+        self.logger.warning(
+            "Circuit breaker manually opened for {provider_name}: {reason}",
+            provider_name=self.provider_name,
+            reason=reason,
+            event_type="CIRCUIT_BREAKER",
+            timestamp=datetime.now()
         )

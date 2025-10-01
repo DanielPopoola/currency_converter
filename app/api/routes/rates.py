@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,13 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.dependencies import get_rate_aggregator
 from app.api.models.requests import ExchangeRateRequest
 from app.api.models.responses import ErrorResponse, ExchangeRateResponse
-from app.monitoring.logger import get_production_logger
+from app.monitoring.logger import logger
 from app.services.rate_aggregator import RateAggregatorService
 from app.utils.time import adjust_timestamp
-
-production_logger = get_production_logger()
-
-
 
 router = APIRouter(prefix="/api/v1", tags=["rates"])
 
@@ -38,11 +35,12 @@ async def get_exchange_rate(
     """
     start_time = time.time()
     try:
-        production_logger.log_user_request(
+        logger.info(
+            "User request received",
             endpoint="/rates",
             request_data=request.model_dump(),
-            success=True, # Will be updated on failure
-            response_time_ms=0 # Will be updated
+            event_type="USER_REQUEST",
+            timestamp=datetime.now()
         )
 
         # Get exchange rate using rate aggregator, but no multplication by any amount like in /convert
@@ -52,11 +50,14 @@ async def get_exchange_rate(
         )
 
         duration_ms = (time.time() - start_time) * 1000
-        production_logger.log_user_request(
+        logger.info(
+            "Exchange rate retrieved successfully",
             endpoint="/rates",
             request_data=request.model_dump(),
             success=True,
-            response_time_ms=duration_ms
+            response_time_ms=duration_ms,
+            event_type="USER_REQUEST",
+            timestamp=datetime.now()
         )
 
         return ExchangeRateResponse(
@@ -71,12 +72,15 @@ async def get_exchange_rate(
         raise
     except ValueError as e:
         duration_ms = (time.time() - start_time) * 1000
-        production_logger.log_user_request(
+        logger.error(
+            "Currency validation failed",
             endpoint="/rates",
             request_data=request.model_dump(),
             success=False,
             response_time_ms=duration_ms,
-            error_message=str(e)
+            error_message=str(e),
+            event_type="USER_REQUEST",
+            timestamp=datetime.now()
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -84,12 +88,15 @@ async def get_exchange_rate(
         ) from e
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
-        production_logger.log_user_request(
+        logger.error(
+            "An unexpected error occurred during exchange rate retrieval",
             endpoint="/rates",
             request_data=request.model_dump(),
             success=False,
             response_time_ms=duration_ms,
-            error_message=str(e)
+            error_message=str(e),
+            event_type="USER_REQUEST",
+            timestamp=datetime.now()
         )
         
         # Return generic error to user
@@ -131,7 +138,8 @@ async def get_exchange_rate_get(
         raise
     except ValueError as e:
         duration_ms = (time.time() - start_time) * 1000
-        production_logger.log_user_request(
+        logger.error(
+            "Invalid rate request parameters or currency validation failed: {error_message}",
             endpoint="/rates/{from_currency}/{to_currency}",
             request_data={
                 'from_currency': from_currency,
@@ -139,7 +147,9 @@ async def get_exchange_rate_get(
             },
             success=False,
             response_time_ms=duration_ms,
-            error_message=f"Invalid rate request parameters or currency validation failed: {e}"
+            error_message=f"Invalid rate request parameters or currency validation failed: {e}",
+            event_type="USER_REQUEST",
+            timestamp=datetime.now()
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -148,7 +158,8 @@ async def get_exchange_rate_get(
     
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
-        production_logger.log_user_request(
+        logger.error(
+            "An unexpected error occurred during exchange rate retrieval (GET)",
             endpoint="/rates/{from_currency}/{to_currency}",
             request_data={
                 'from_currency': from_currency,
@@ -156,7 +167,9 @@ async def get_exchange_rate_get(
             },
             success=False,
             response_time_ms=duration_ms,
-            error_message=str(e)
+            error_message=str(e),
+            event_type="USER_REQUEST",
+            timestamp=datetime.now()
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

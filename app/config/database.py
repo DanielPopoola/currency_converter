@@ -1,7 +1,7 @@
-import logging
 import os
 from collections.abc import Generator
 from contextlib import contextmanager
+from datetime import datetime
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
@@ -9,10 +9,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool
 
 from app.database.models import APIProvider, Base, CurrencyPair
+from app.monitoring.logger import logger
 
 load_dotenv()
-
-logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
@@ -77,13 +76,21 @@ class DatabaseManager:
                     """))
                     
                     conn.commit()
-                    logger.info("Database tables and indexes created successfully")
+                    logger.info("Database tables and indexes created successfully", timestamp=datetime.now())
                     
                 except Exception as index_error:
-                    logger.warning(f"Index creation warning (may already exist): {index_error}")
+                    logger.warning(
+                        "Index creation warning (may already exist): {error}",
+                        error=str(index_error),
+                        timestamp=datetime.now()
+                    )
 
         except Exception as e:
-            logger.error(f"Failed to create database tables: {e}")
+            logger.error(
+                "Failed to create database tables: {error}",
+                error=str(e),
+                timestamp=datetime.now()
+            )
             raise
 
     @contextmanager
@@ -95,7 +102,11 @@ class DatabaseManager:
             session.commit()
         except Exception as e:
             session.rollback()
-            logger.error(f"Database session error: {e}")
+            logger.error(
+                "Database session error: {error}",
+                error=str(e),
+                timestamp=datetime.now()
+            )
             raise
         finally:
             session.close()
@@ -158,7 +169,11 @@ class DatabaseManager:
                     if not existing:
                         provider = APIProvider(**provider_data)
                         session.add(provider)
-                        logger.info(f"Seeded API provider: {provider_data['name']}")
+                        logger.info(
+                            "Seeded API provider: {provider_name}",
+                            provider_name=provider_data['name'],
+                            timestamp=datetime.now()
+                        )
 
                 currency_pairs = [
                     ("USD", "EUR"), ("EUR", "USD"),
@@ -181,13 +196,22 @@ class DatabaseManager:
                     if not existing:
                         pair = CurrencyPair(base_currency=base, target_currency=target)
                         session.add(pair)
-                        logger.debug(f"Seeded currency pair: {base}->{target}")
+                        logger.debug(
+                            "Seeded currency pair: {base_currency}->{target_currency}",
+                            base_currency=base,
+                            target_currency=target,
+                            timestamp=datetime.now()
+                        )
                 
                 session.commit()
-                logger.info("Database seeding completed successfully")
+                logger.info("Database seeding completed successfully", timestamp=datetime.now())
                 
         except Exception as e:
-            logger.error(f"Failed to seed database: {e}")
+            logger.error(
+                "Failed to seed database: {error}",
+                error=str(e),
+                timestamp=datetime.now()
+            )
             raise
 
     def get_or_create_currency_pair(self, session: Session, base: str, target: str) -> CurrencyPair:

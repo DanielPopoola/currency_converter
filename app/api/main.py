@@ -1,4 +1,3 @@
-import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -10,16 +9,13 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes import convert, health, rates
 from app.config.database import DatabaseManager
-from app.monitoring.logger import get_production_logger
+from app.monitoring.logger import logger
 from app.services.service_factory import service_factory
-
-logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize logger
-    get_production_logger()
     logger.info("Starting Currency Converter API...")
 
     try:
@@ -89,7 +85,12 @@ app.add_middleware(
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions with consistent format"""
-    logger.error(f"HTTPException caught: Status {exc.status_code}, Detail: {exc.detail}")
+    logger.error(
+        "HTTPException caught: Status {status_code}, Detail: {detail}",
+        status_code=exc.status_code,
+        detail=exc.detail,
+        timestamp=datetime.now()
+    )
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -104,7 +105,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(ValidationException)
 async def validation_exception_handler(request: Request, exc: ValidationException):
     """Handle Pydantic validation errors"""
-    logger.warning(f"Validation error on {request.url.path}: {exc}")
+    logger.warning(
+        "Validation error on {path}: {error}",
+        path=request.url.path,
+        error=str(exc),
+        timestamp=datetime.now()
+    )
     return JSONResponse(
         status_code=422,
         content={

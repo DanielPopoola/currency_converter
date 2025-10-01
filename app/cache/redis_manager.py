@@ -7,7 +7,7 @@ from typing import Any
 
 from redis import asyncio as redis
 
-from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
+from app.monitoring.logger import logger
 
 
 class CircuitBreakerState(Enum):
@@ -19,7 +19,7 @@ class RedisManager:
     """Handles all Redis operations for caching and circuit breaker state"""
 
     def __init__(self, redis_url: str = "redis://localhost:6379"):
-        self.production_logger = get_production_logger()
+        self.logger = logger.bind(service="RedisManager")
         self.redis_client = redis.from_url(redis_url, decode_responses=True)
         self.RATE_CACHE_TTL = 300
         self.CIRCUIT_BREAKER_TTL = 3600
@@ -66,22 +66,26 @@ class RedisManager:
                 json.dumps(cache_data)
             )
             
-            self.production_logger.log_cache_operation(
+            self.logger.info(
+                "Cache operation: set_latest_rate",
                 operation="set_latest_rate",
                 cache_key=key,
                 hit=False,
-                duration_ms=0
+                duration_ms=0,
+                timestamp=datetime.now()
             )
             
             return bool(result)
             
         except Exception as e:
-            self.production_logger.log_cache_operation(
+            self.logger.error(
+                "Cache operation error: set_latest_rate",
                 operation="set_latest_rate",
                 cache_key=self._get_rate_cache_key(base, target),
                 hit=False,
                 duration_ms=0,
-                error_message=str(e)
+                error_message=str(e),
+                timestamp=datetime.now()
             )
             return False
 
@@ -107,31 +111,37 @@ class RedisManager:
             if cached_data:
                 rate_data = json.loads(cached_data)
                 
-                self.production_logger.log_cache_operation(
+                self.logger.info(
+                    "Cache operation: get_latest_rate",
                     operation="get_latest_rate",
                     cache_key=key,
                     hit=True,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
+                    timestamp=datetime.now()
                 )
                 
                 return rate_data
             else:
-                self.production_logger.log_cache_operation(
+                self.logger.info(
+                    "Cache operation: get_latest_rate",
                     operation="get_latest_rate",
                     cache_key=key,
                     hit=False,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
+                    timestamp=datetime.now()
                 )
                 return None
                 
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
-            self.production_logger.log_cache_operation(
+            self.logger.error(
+                "Cache operation error: get_latest_rate",
                 operation="get_latest_rate",
                 cache_key=self._get_rate_cache_key(base, target),
                 hit=False,
                 duration_ms=duration_ms,
-                error_message=str(e)
+                error_message=str(e),
+                timestamp=datetime.now()
             )
             return None
 
@@ -142,20 +152,24 @@ class RedisManager:
             json_data = json.dumps(cache_data)
 
             result = await self.redis_client.setex(cache_key, ttl, json_data)
-            self.production_logger.log_cache_operation(
-                operation="set_validation",
-                cache_key=cache_key,
-                hit=False,
-                duration_ms=0 # Not measured here
-            )
-            return bool(result)
-        except Exception as e:
-            self.production_logger.log_cache_operation(
+            self.logger.info(
+                "Cache operation: set_validation",
                 operation="set_validation",
                 cache_key=cache_key,
                 hit=False,
                 duration_ms=0,
-                error_message=str(e)
+                timestamp=datetime.now()
+            )
+            return bool(result)
+        except Exception as e:
+            self.logger.error(
+                "Cache operation error: set_validation",
+                operation="set_validation",
+                cache_key=cache_key,
+                hit=False,
+                duration_ms=0,
+                error_message=str(e),
+                timestamp=datetime.now()
             )
             return False
         
@@ -167,39 +181,47 @@ class RedisManager:
             duration_ms = (time.time() - start_time) * 1000
 
             if cached_value is None:
-                self.production_logger.log_cache_operation(
+                self.logger.info(
+                    "Cache operation: get_validation",
                     operation="get_validation",
                     cache_key=cache_key,
                     hit=False,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
+                    timestamp=datetime.now()
                 )
                 return None
             
             validation_data = json.loads(cached_value)
-            self.production_logger.log_cache_operation(
+            self.logger.info(
+                "Cache operation: get_validation",
                 operation="get_validation",
                 cache_key=cache_key,
                 hit=True,
-                duration_ms=duration_ms
+                duration_ms=duration_ms,
+                timestamp=datetime.now()
             )
             return validation_data
         except json.JSONDecodeError:
             duration_ms = (time.time() - start_time) * 1000
-            self.production_logger.log_cache_operation(
+            self.logger.error(
+                "Cache operation error: get_validation (JSONDecodeError)",
                 operation="get_validation",
                 cache_key=cache_key,
                 hit=False,
                 duration_ms=duration_ms,
+                timestamp=datetime.now()
             )
             return None
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
-            self.production_logger.log_cache_operation(
+            self.logger.error(
+                "Cache operation error: get_validation",
                 operation="get_validation",
                 cache_key=cache_key,
                 hit=False,
                 duration_ms=duration_ms,
-                error_message=str(e)
+                error_message=str(e),
+                timestamp=datetime.now()
             )
             return None
           
@@ -217,14 +239,12 @@ class RedisManager:
                 return CircuitBreakerState.CLOSED
             
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CIRCUIT_BREAKER,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to get circuit breaker state for provider {provider_id}: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Failed to get circuit breaker state for provider {provider_id}: {error}",
+                provider_id=provider_id,
+                error=str(e),
+                event_type="CIRCUIT_BREAKER",
+                timestamp=datetime.now()
             )
             return CircuitBreakerState.CLOSED
     
@@ -246,24 +266,25 @@ class RedisManager:
 
                 await pipeline.execute()
 
-            self.production_logger.log_circuit_breaker_event(
+            self.logger.info(
+                "Circuit breaker state set",
                 provider_name=str(provider_id),
-                old_state="", # Not available here
+                old_state="",
                 new_state=state.value,
                 failure_count=failure_count,
-                reason=reason
+                reason=reason,
+                event_type="CIRCUIT_BREAKER",
+                timestamp=datetime.now()
             )
             return True
             
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CIRCUIT_BREAKER,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to set circuit breaker state for provider {provider_id}: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Failed to set circuit breaker state for provider {provider_id}: {error}",
+                provider_id=provider_id,
+                error=str(e),
+                event_type="CIRCUIT_BREAKER",
+                timestamp=datetime.now()
             )
             return False
         
@@ -275,14 +296,12 @@ class RedisManager:
             return int(count) if count else 0
             
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CIRCUIT_BREAKER,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to get failure count for provider {provider_id}: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Failed to get failure count for provider {provider_id}: {error}",
+                provider_id=provider_id,
+                error=str(e),
+                event_type="CIRCUIT_BREAKER",
+                timestamp=datetime.now()
             )
             return 0
         
@@ -293,28 +312,21 @@ class RedisManager:
             new_count = await self.redis_client.incr(failures_key)
             await self.redis_client.expire(failures_key, self.CIRCUIT_BREAKER_TTL)
             
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CIRCUIT_BREAKER,
-                    level=LogLevel.DEBUG,
-                    message=f"Provider {provider_id} failure count: {new_count}",
-                    timestamp=datetime.now(),
-                    api_context={
-                        'provider_id': provider_id,
-                        'failure_count': new_count
-                    }
-                )
+            self.logger.debug(
+                "Provider {provider_id} failure count: {new_count}",
+                provider_id=provider_id,
+                failure_count=new_count,
+                event_type="CIRCUIT_BREAKER",
+                timestamp=datetime.now()
             )
             return new_count
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CIRCUIT_BREAKER,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to increment failure count for provider {provider_id}: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Failed to increment failure count for provider {provider_id}: {error}",
+                provider_id=provider_id,
+                error=str(e),
+                event_type="CIRCUIT_BREAKER",
+                timestamp=datetime.now()
             )
             return 0
         
@@ -324,27 +336,20 @@ class RedisManager:
             failures_key = self._get_circuit_breaker_key(provider_id, "failures")
             await self.redis_client.delete(failures_key)
             
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CIRCUIT_BREAKER,
-                    level=LogLevel.DEBUG,
-                    message=f"Reset failure count for provider {provider_id}",
-                    timestamp=datetime.now(),
-                    api_context={
-                        'provider_id': provider_id
-                    }
-                )
+            self.logger.debug(
+                "Reset failure count for provider {provider_id}",
+                provider_id=provider_id,
+                event_type="CIRCUIT_BREAKER",
+                timestamp=datetime.now()
             )            
             return True
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CIRCUIT_BREAKER,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to reset failure count for provider {provider_id}: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Failed to reset failure count for provider {provider_id}: {error}",
+                provider_id=provider_id,
+                error=str(e),
+                event_type="CIRCUIT_BREAKER",
+                timestamp=datetime.now()
             )
             return False
 
@@ -354,14 +359,12 @@ class RedisManager:
             last_failure_key = self._get_circuit_breaker_key(provider_id, "last_failure")
             return await self.redis_client.get(last_failure_key)
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CIRCUIT_BREAKER,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to get last failure time for provider {provider_id}: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Failed to get last failure time for provider {provider_id}: {error}",
+                provider_id=provider_id,
+                error=str(e),
+                event_type="CIRCUIT_BREAKER",
+                timestamp=datetime.now()
             )
             return None
 
@@ -372,12 +375,16 @@ class RedisManager:
             if cached_data:
                 return json.loads(cached_data)
             return []
-        except Exception:
-            self.production_logger.log_cache_operation(
+        except Exception as e:
+            self.logger.error(
+                "Failed to get top currencies: {error}",
+                error=str(e),
                 operation="get_top_currencies",
                 cache_key=self.TOP_CURRENCIES_KEY,
                 hit=False,
                 duration_ms=0,
+                event_type="CACHE_OPERATION",
+                timestamp=datetime.now()
             )
             return []
 
@@ -385,18 +392,25 @@ class RedisManager:
         """Cache a list of top currencies with a specified TTL."""
         try:
             await self.redis_client.setex(self.TOP_CURRENCIES_KEY, ttl, json.dumps(currencies))
-            self.production_logger.log_cache_operation(
-                operation="set_top_currencies",
-                cache_key=self.TOP_CURRENCIES_KEY,
-                hit=False,
-                duration_ms=0
-            )
-        except Exception:
-            self.production_logger.log_cache_operation(
+            self.logger.info(
+                "Cache operation: set_top_currencies",
                 operation="set_top_currencies",
                 cache_key=self.TOP_CURRENCIES_KEY,
                 hit=False,
                 duration_ms=0,
+                event_type="CACHE_OPERATION",
+                timestamp=datetime.now()
+            )
+        except Exception as e:
+            self.logger.error(
+                "Failed to set top currencies: {error}",
+                error=str(e),
+                operation="set_top_currencies",
+                cache_key=self.TOP_CURRENCIES_KEY,
+                hit=False,
+                duration_ms=0,
+                event_type="CACHE_OPERATION",
+                timestamp=datetime.now()
             )
 
 
@@ -427,29 +441,21 @@ class RedisManager:
             # Publish to Redis channel
             subscriber_count = await self.redis_client.publish(channel, json.dumps(message))
 
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CACHE_OPERATION,
-                    level=LogLevel.DEBUG,
-                    message=f"Published rate update for {base}/{target} to {subscriber_count} suscribers",
-                    timestamp=datetime.now(),
-                    api_context={
-                        'channel': channel,
-                        'pair': f"{base}/{target}",
-                        'suscriber_count': subscriber_count
-                    }
-                )
+            self.logger.debug(
+                "Published rate update for {pair} to {subscriber_count} subscribers",
+                channel=channel,
+                pair=f"{base}/{target}",
+                subscriber_count=subscriber_count,
+                event_type="CACHE_OPERATION",
+                timestamp=datetime.now()
             )
             return subscriber_count
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CACHE_OPERATION,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to publish rate update: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Failed to publish rate update: {error}",
+                error=str(e),
+                event_type="CACHE_OPERATION",
+                timestamp=datetime.now()
             )
         return 0
     
@@ -468,13 +474,10 @@ class RedisManager:
         try:
             await pubsub.subscribe("rates:broadcast")
             
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CACHE_OPERATION,
-                    level=LogLevel.INFO,
-                    message="Suscribed to rates:broadcast channel",
-                    timestamp=datetime.now()
-                )
+            self.logger.info(
+                "Subscribed to rates:broadcast channel",
+                event_type="CACHE_OPERATION",
+                timestamp=datetime.now()
             )
 
             # Listen for messags indefinitely
@@ -484,25 +487,20 @@ class RedisManager:
                         data = json.loads(message["data"])
                         yield data
                     except json.JSONDecodeError as e:
-                        self.production_logger.log_event(
-                            LogEvent(
-                                event_type=EventType.CACHE_OPERATION,
-                                level=LogLevel.ERROR,
-                                message=f"Failed to parse pubsub message: {e}",
-                                timestamp=datetime.now(),
-                                error_context={'error': str(e), 'raw_message': message}
-                            )
+                        self.logger.error(
+                            "Failed to parse pubsub message: {error}",
+                            error=str(e),
+                            raw_message=message,
+                            event_type="CACHE_OPERATION",
+                            timestamp=datetime.now()
                         )
                     continue
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CACHE_OPERATION,
-                    level=LogLevel.ERROR,
-                    message=f"Pub/Sub subscription error: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Pub/Sub subscription error: {error}",
+                error=str(e),
+                event_type="CACHE_OPERATION",
+                timestamp=datetime.now()
             )   
         finally:
             await pubsub.unsubscribe("rates:broadcast")
@@ -534,20 +532,27 @@ class RedisManager:
             keys = await self.redis_client.keys(pattern)
             if keys:
                 deleted = await self.redis_client.delete(*keys)
-                self.production_logger.log_cache_operation(
+                self.logger.info(
+                    "Cache operation: clear_pattern",
                     operation="clear_pattern",
                     cache_key=pattern,
                     hit=False,
                     duration_ms=0,
+                    event_type="CACHE_OPERATION",
+                    timestamp=datetime.now()
                 )
                 return deleted
             return 0
-        except Exception:
-            self.production_logger.log_cache_operation(
+        except Exception as e:
+            self.logger.error(
+                "Failed to clear cache pattern: {error}",
+                error=str(e),
                 operation="clear_pattern",
                 cache_key=pattern,
                 hit=False,
                 duration_ms=0,
+                event_type="CACHE_OPERATION",
+                timestamp=datetime.now()
             )
             return 0
 
