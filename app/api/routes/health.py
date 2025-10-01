@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_service_factory
 from app.api.models.responses import HealthResponse
-from app.monitoring.logger import logger, LogLevel
+from app.monitoring.logger import LogLevel, logger
 from app.services.service_factory import ServiceFactory
 from app.utils.time import get_adjusted_timestamp
 
