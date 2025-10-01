@@ -84,4 +84,4 @@ jobs:
         context: .
         file: ./Dockerfile
         push: true
-        tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+        tags: ghcr.io/${{ github.repository_owner,, }}/currency_converter:${{ github.sha }}
