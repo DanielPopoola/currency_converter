@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -10,7 +9,7 @@ from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
 from app.database.models import APICallLog, ExchangeRate
 from app.database.models import APIProvider as APIProviderModel
-from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
+from app.monitoring.logger import logger
 from app.providers.base import APICallResult, APIProvider
 from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerError
 from app.services.currency_manager import CurrencyManager
@@ -52,7 +51,7 @@ class RateAggregatorService:
         self.db_manager = db_manager
         self.currency_manager = currency_manager
         self.primary_provider = primary_provider
-        self.production_logger = get_production_logger()
+        self.logger = logger.bind(service="RateAggregator")
 
     async def get_exchange_rate(self, base: str, target: str) -> AggregatedRateResult:
         """
@@ -70,11 +69,13 @@ class RateAggregatorService:
         is_valid, error_msg = await self.currency_manager.validate_currencies(base, target)
         duration_ms = (time.time() - start_time) * 1000
         if not is_valid:
-            self.production_logger.log_currency_validation(
+            self.logger.error(
+                "Invalid currency input",
                 from_currency=base,
                 to_currency=target,
                 validation_result={'valid': False, 'error': error_msg},
-                duration_ms=duration_ms
+                duration_ms=duration_ms,
+                timestamp=datetime.now()
             )
             raise ValueError(f"Currency validation failed: {error_msg}")
 
@@ -82,11 +83,13 @@ class RateAggregatorService:
         cached_rate = await self._check_cache(base, target)
         if cached_rate:
             response_time_ms = int((time.time() - start_time) * 1000)
-            self.production_logger.log_cache_operation(
+            self.logger.info(
+                "Fetching rates from cache",
                 operation="get",
                 cache_key=f"rate:{base}:{target}",
                 hit=True,
-                duration_ms=response_time_ms
+                duration_ms=response_time_ms,
+                timestamp=datetime.now()
             )
 
             return AggregatedRateResult(
@@ -123,14 +126,12 @@ class RateAggregatorService:
     async def _try_provider(self, provider_name: str, base: str, target: str) -> APICallResult | None:
         """Try a single provider with circuit breaker protection"""
         if provider_name not in self.providers:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.RATE_AGGREGATION,
-                    level=LogLevel.ERROR,
-                    message=f"Provider {provider_name} not found",
-                    timestamp=datetime.now(),
-                    error_context={'error': 'Provider not configured'}
-                )
+            self.logger.error(
+                "Provider {provider_name} not found",
+                provider_name=provider_name,
+                event_type="RATE_AGGREGATION",
+                error="Provider not configured",
+                timestamp=datetime.now()
             )
             return None
         
@@ -148,51 +149,45 @@ class RateAggregatorService:
             duration_ms = (time.time() - start_time) * 1000
 
             # Log successful API call
-            self.production_logger.log_api_call(
+            self.logger.info(
+                "API call successful",
                 provider_name=provider_name,
                 endpoint="get_exchange_rate",
                 success=True,
                 response_time_ms=duration_ms,
-                rate_data={"rate": str(result.data.rate), "base": base, "target": target}
+                rate_data={"rate": str(result.data.rate), "base": base, "target": target},
+                timestamp=datetime.now()
             )
             return result
         
         except CircuitBreakerError as e:
             duration_ms = (time.time() - start_time) * 1000
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.CIRCUIT_BREAKER,
-                    level=LogLevel.WARNING,
-                    message=f"Circuit breaker OPEN for {provider_name}, blocking {base} -> target",
-                    timestamp=datetime.now(),
-                    duration_ms=duration_ms,
-                    api_context={
-                        'provider': provider_name,
-                        'operation': 'request_blocked',
-                        'failure_count': e.failure_count
-                    },
-                    user_context={
-                        'base_currency': base,
-                        'target_currency': target
-                    },
-                    error_context={
-                        'circuit_state': 'OPEN',
-                        'last_failure_time': e.last_failure_time.isoformat()
-                    }
-                )
+            self.logger.warning(
+                "Circuit breaker OPEN for {provider_name}, blocking {base_currency} -> {target_currency}",
+                provider_name=provider_name,
+                base_currency=base,
+                target_currency=target,
+                event_type="CIRCUIT_BREAKER",
+                duration_ms=duration_ms,
+                operation='request_blocked',
+                failure_count=e.failure_count,
+                circuit_state='OPEN',
+                last_failure_time=e.last_failure_time.isoformat(),
+                timestamp=datetime.now()
             )
             return None
         
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
-        
-            # Log unexpected API failure
-            self.production_logger.log_api_call(
+            self.logger.error(
+                "API call failed unexpectedly for {provider_name} at {endpoint}",
                 provider_name=provider_name,
                 endpoint="get_exchange_rate",
                 success=False,
                 response_time_ms=duration_ms,
-                error_message=str(e)
+                error_message=str(e),
+                event_type="API_CALL",
+                timestamp=datetime.now()
             )
             return None
 
@@ -214,14 +209,11 @@ class RateAggregatorService:
             if isinstance(result, APICallResult) and result is not None:
                 valid_results.append(result)
             elif isinstance(result, Exception):
-                self.production_logger.log_event(
-                    LogEvent(
-                        event_type=EventType.API_CALL,
-                        level=LogLevel.ERROR,
-                        message=f"Secondary provider exception: {result}",
-                        timestamp=datetime.now(UTC),
-                        error_context={'error': str(result)}
-                    )
+                self.logger.error(
+                    "Secondary provider exception: {error}",
+                    error=str(result),
+                    event_type="API_CALL",
+                    timestamp=datetime.now()
                 )
 
         return valid_results
@@ -259,38 +251,28 @@ class RateAggregatorService:
 
                 if primary_rate and max_deviation >= 1.0:
                     avg_rate = primary_rate
-                    self.production_logger.log_event(
-                        LogEvent(
-                            event_type=EventType.RATE_AGGREGATION,
-                            level=LogLevel.WARNING,
-                            message=f"High deviation ({max_deviation:.4f}) between primary and secondary rates for {base}->{target}, using primary only",
-                            timestamp=datetime.now(),
-                            api_context={
-                                'base_currency': base,
-                                'target_currency': target,
-                                'primary_rate': str(primary_rate),
-                                'secondary_rates': [str(r) for r in secondary_rates],
-                                'max_deviation': str(max_deviation)
-                            }
-                        )
+                    self.logger.warning(
+                        "High deviation ({max_deviation:.4f}) between primary and secondary rates for {base_currency}->{target_currency}, using primary only",
+                        base_currency=base,
+                        target_currency=target,
+                        primary_rate=str(primary_rate),
+                        secondary_rates=[str(r) for r in secondary_rates],
+                        max_deviation=f"{max_deviation:.4f}",
+                        event_type="RATE_AGGREGATION",
+                        timestamp=datetime.now()
                     )
 
-                self.production_logger.log_event(
-                    LogEvent(
-                        event_type=EventType.RATE_AGGREGATION,
-                        level=LogLevel.INFO,
-                        message=f"Rate comparison {base}->{target}: Primary({self.primary_provider}): {primary_rate}, Secondaries({secondary_names}): {secondary_rates}, Max deviation: {max_deviation:.6f}",
-                        timestamp=datetime.now(),
-                        api_context={
-                            'base_currency': base,
-                            'target_currency': target,
-                            'primary_provider': self.primary_provider,
-                            'primary_rate': str(primary_rate),
-                            'secondary_providers': secondary_names,
-                            'secondary_rates': [str(r) for r in secondary_rates],
-                            'max_deviation': str(max_deviation)
-                        }
-                    )
+                self.logger.info(
+                    "Rate comparison {base_currency}->{target_currency}: Primary({primary_provider}): {primary_rate}, Secondaries({secondary_providers}): {secondary_rates}, Max deviation: {max_deviation:.6f}",
+                    base_currency=base,
+                    target_currency=target,
+                    primary_provider=self.primary_provider,
+                    primary_rate=str(primary_rate),
+                    secondary_providers=secondary_names,
+                    secondary_rates=[str(r) for r in secondary_rates],
+                    max_deviation=f"{max_deviation:.6f}",
+                    event_type="RATE_AGGREGATION",
+                    timestamp=datetime.now()
                 )
 
                 # If multiple sources available, use average
@@ -298,16 +280,19 @@ class RateAggregatorService:
                     sources_used.extend(secondary_names)
                     confidence_level = "high"
 
-                    self.production_logger.log_rate_aggregation(
-                        base=base,
-                        target=target,
+                    self.logger.info(
+                        "Rate aggregated successfully",
+                        base_currency=base,
+                        target_currency=target,
                         final_rate=float(avg_rate),
                         confidence_level=confidence_level,
                         sources_used=sources_used,
                         is_primary_used=True,
                         was_cached=False,
                         total_duration_ms=response_time_ms,
-                        warnings=[f"High deviation ({max_deviation:.4f}) between rates"]
+                        warnings=[f"High deviation ({max_deviation:.4f}) between rates"],
+                        event_type="RATE_AGGREGATION",
+                        timestamp=datetime.now()
                     )
 
                     return AggregatedRateResult(
@@ -336,17 +321,12 @@ class RateAggregatorService:
         
         # Scenario 2: Primary failed, use secondary APIs
         elif successful_results:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.RATE_AGGREGATION,
-                    level=LogLevel.WARNING,
-                    message=f"Primary provider {self.primary_provider} failed, using secondary sources",
-                    timestamp=datetime.now(),
-                    api_context={
-                        'primary_provider': self.primary_provider,
-                        'successful_secondary_providers': [r.provider_name for r in successful_results]
-                    }
-                )
+            self.logger.warning(
+                "Primary provider {primary_provider} failed, using secondary sources",
+                primary_provider=self.primary_provider,
+                successful_secondary_providers=[r.provider_name for r in successful_results],
+                event_type="RATE_AGGREGATION",
+                timestamp=datetime.now()
             )
 
             # Calculate average of successful secondary APIs
@@ -377,17 +357,12 @@ class RateAggregatorService:
         
         # Scenario 3: All APIs failed - try cache as last resort
         else:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.RATE_AGGREGATION,
-                    level=LogLevel.ERROR,
-                    message=f"All providers failed for {base}->{target}, checking stale cache",
-                    timestamp=datetime.now(),
-                    api_context={
-                        'base_currency': base,
-                        'target_currency': target
-                    }
-                )
+            self.logger.error(
+                "All providers failed for {base_currency}->{target_currency}, checking stale cache",
+                base_currency=base,
+                target_currency=target,
+                event_type="RATE_AGGREGATION",
+                timestamp=datetime.now()
             )
 
             # Try to get cached data even if expired (graceful degradation)
@@ -447,12 +422,15 @@ class RateAggregatorService:
                     }
         
         except Exception as e:
-            self.production_logger.log_cache_operation(
+            self.logger.error(
+                "Failed to get stale cache for {cache_key}: {error_message}",
                 operation="get_stale",
                 cache_key=f"rate:{base}:{target}",
                 hit=False,
-                duration_ms=0, # Not measured here
-                error_message=str(e)
+                duration_ms=0,
+                error_message=str(e),
+                event_type="CACHE_OPERATION",
+                timestamp=datetime.now()
             )
         
         return None
@@ -520,14 +498,11 @@ class RateAggregatorService:
                 session.commit()
                 
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.DATABASE_OPERATION,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to log results to database: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Failed to log results to database: {error}",
+                error=str(e),
+                event_type="DATABASE_OPERATION",
+                timestamp=datetime.now()
             )
 
     def _get_provider_id(self, provider_name: str):

@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
@@ -7,12 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.dependencies import get_rate_aggregator
 from app.api.models.requests import ConvertRequest
 from app.api.models.responses import ConvertResponse, ErrorResponse
-from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
+from app.monitoring.logger import logger
 from app.services.rate_aggregator import RateAggregatorService
 from app.utils.time import adjust_timestamp
-
-production_logger = get_production_logger()
-
 
 router = APIRouter(prefix="/api/v1", tags=["conversion"])
 
@@ -36,11 +34,12 @@ async def convert_currency(
     """
     start_time = time.time()
     try:
-        production_logger.log_user_request(
+        logger.info(
+            "User request received",
             endpoint="/convert",
             request_data=request.model_dump(),
-            success=True, # Will be updated on failure
-            response_time_ms=0 # Will be updated
+            event_type="USER_REQUEST",
+            timestamp=datetime.now()
         )
 
         # Get exchange rate results using rate aggregator
@@ -54,11 +53,14 @@ async def convert_currency(
         converted_amount = round(converted_amount, 2)
 
         duration_ms = (time.time() - start_time) * 1000
-        production_logger.log_user_request(
+        logger.info(
+            "Currency conversion successful",
             endpoint="/convert",
             request_data=request.model_dump(),
             success=True,
-            response_time_ms=duration_ms
+            response_time_ms=duration_ms,
+            event_type="USER_REQUEST",
+            timestamp=datetime.now()
         )
 
         return ConvertResponse(
@@ -74,12 +76,15 @@ async def convert_currency(
         raise
     except ValueError as e:
         duration_ms = (time.time() - start_time) * 1000
-        production_logger.log_user_request(
+        logger.error(
+            "Currency validation failed",
             endpoint="/convert",
             request_data=request.model_dump(),
             success=False,
             response_time_ms=duration_ms,
-            error_message=str(e)
+            error_message=str(e),
+            event_type="USER_REQUEST",
+            timestamp=datetime.now()
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -87,12 +92,15 @@ async def convert_currency(
         ) from e
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
-        production_logger.log_user_request(
+        logger.error(
+            "An unexpected error occurred during currency conversion",
             endpoint="/convert",
             request_data=request.model_dump(),
             success=False,
             response_time_ms=duration_ms,
-            error_message=str(e)
+            error_message=str(e),
+            event_type="USER_REQUEST",
+            timestamp=datetime.now()
         )
         
         # Return generic error to user

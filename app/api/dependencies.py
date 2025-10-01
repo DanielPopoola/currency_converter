@@ -1,10 +1,9 @@
-import logging
+from datetime import datetime
 
 from fastapi import HTTPException, status
 
+from app.monitoring.logger import logger
 from app.services.service_factory import service_factory
-
-logger = logging.getLogger(__name__)
 
 
 async def get_rate_aggregator():
@@ -19,7 +18,11 @@ async def get_rate_aggregator():
 
         return service_factory.rate_aggregator
     except Exception as e:
-        logger.error(f"Failed to get rate aggregator service: {e}")
+        logger.error(
+            "Failed to get rate aggregator service: {error}",
+            error=str(e),
+            timestamp=datetime.now()
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporarily unavailable"
@@ -34,7 +37,11 @@ async def get_service_factory():
     try:
         return service_factory
     except Exception as e:
-        logger.error(f"Failed to get service factory: {e}")
+        logger.error(
+            "Failed to get service factory: {error}",
+            error=str(e),
+            timestamp=datetime.now()
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporarily unavailable"

@@ -1,11 +1,8 @@
-import logging
 import os
 import urllib.parse
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-
-from app.monitoring.logger import EventType, LogEvent, LogLevel
 
 from .base import APICallResult, APIProvider, ExchangeRateResponse
 
@@ -82,14 +79,13 @@ class CurrencyAPIProvider(APIProvider):
             )
         
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.API_CALL,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to parse {self.name} response: {e}",
-                    timestamp=datetime.now(UTC),
-                    error_context={'error': str(e), 'raw_response': response_data}
-                )
+            self.logger.error(
+                "Failed to parse {provider_name} response: {error}",
+                provider_name=self.name,
+                error=str(e),
+                raw_response=response_data,
+                event_type="API_CALL",
+                timestamp=datetime.now()
             )
             return ExchangeRateResponse(
                 base_currency=base,

@@ -1,26 +1,23 @@
-import logging
 import os
-from datetime import UTC, datetime
+from datetime import datetime
 
 from dotenv import load_dotenv
 
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
 from app.database.models import APIProvider as APIProviderModel
-from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
+from app.monitoring.logger import logger
 from app.providers import APIProvider, CurrencyAPIProvider, FixerIOProvider, OpenExchangeProvider
 from app.services import CircuitBreaker, CurrencyManager, RateAggregatorService
 
 load_dotenv()
 
-logger = logging.getLogger(__name__)
 
 
 class ServiceFactory:
     """Factory to create and wire up all services with dependencies"""
 
     def __init__(self):
-        self.production_logger = get_production_logger()
         # Initialize core infrastructure
         self.redis_manager = RedisManager(
             redis_url=os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -34,6 +31,7 @@ class ServiceFactory:
         self.circuit_breakers: dict[str, CircuitBreaker] = {}
         self.rate_aggregator: RateAggregatorService = None
         self.currency_manager: CurrencyManager
+        self.logger = logger.bind(service="ServiceFactory")
 
     async def create_rate_aggregator(self) -> RateAggregatorService:
         """Create fully configured rate aggregator with all providers and circuit breakers"""
@@ -87,14 +85,11 @@ class ServiceFactory:
             currency_manager=self.currency_manager,
         )
         
-        self.production_logger.log_event(
-            LogEvent(
-                event_type=EventType.SERVICE_LIFECYCLE,
-                level=LogLevel.INFO,
-                message=f"Rate aggregator created with {len(self.providers)} providers",
-                timestamp=datetime.now(),
-                api_context={'provider_count': len(self.providers)}
-            )
+        self.logger.info(
+            "Rate aggregator created with {provider_count} providers",
+            provider_count=len(self.providers),
+            timestamp=datetime.now(),
+            event_type="SERVICE_LIFECYCLE"
         )
         return self.rate_aggregator
     
@@ -105,14 +100,11 @@ class ServiceFactory:
                 providers = session.query(APIProviderModel).all()
                 return {provider.name: provider.id for provider in providers}
         except Exception as e:
-            self.production_logger.log_event(
-                LogEvent(
-                    event_type=EventType.DATABASE_OPERATION,
-                    level=LogLevel.ERROR,
-                    message=f"Failed to get provider IDs: {e}",
-                    timestamp=datetime.now(),
-                    error_context={'error': str(e)}
-                )
+            self.logger.error(
+                "Failed to get provider IDs: {error}",
+                timestamp=datetime.now(),
+                error=str(e),
+                event_type="DATABASE_OPERATION"
             )
             return {}
     
@@ -122,13 +114,10 @@ class ServiceFactory:
         for provider in self.providers.values():
             await provider.close()
         
-        self.production_logger.log_event(
-            LogEvent(
-                event_type=EventType.SERVICE_LIFECYCLE,
-                level=LogLevel.INFO,
-                message="Services cleaned up successfully",
-                timestamp=datetime.now(),
-            )
+        self.logger.info(
+            "Services cleaned up successfully",
+            event_type="SERVICE_LIFECYCLE",
+            timestamp=datetime.now(),
         )
     
     def get_redis_manager(self) -> RedisManager:
