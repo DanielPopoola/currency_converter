@@ -187,7 +187,7 @@ async def main():
     
     # Define which currencies to track
     base_currencies = ["USD", "EUR"]
-    target_currencies = {"EUR", "GBP", "NGN", "JPY", "CAD", "AUD"}
+    target_currencies = {"GBP", "NGN", "JPY", "CAD", "AUD", "CHF"}
     
     worker = RateIngestorWorker(
         rate_aggregator=service_factory.rate_aggregator,
