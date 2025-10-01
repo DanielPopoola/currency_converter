@@ -3,7 +3,7 @@ import logging
 import time
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from redis import asyncio as redis
 

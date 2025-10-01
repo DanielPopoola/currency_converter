@@ -1,12 +1,8 @@
 import logging
 import os
-from typing import Dict
+from datetime import UTC, datetime
 
 from dotenv import load_dotenv
-
-load_dotenv()
-
-from datetime import UTC, datetime
 
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
@@ -14,6 +10,8 @@ from app.database.models import APIProvider as APIProviderModel
 from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
 from app.providers import APIProvider, CurrencyAPIProvider, FixerIOProvider, OpenExchangeProvider
 from app.services import CircuitBreaker, CurrencyManager, RateAggregatorService
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

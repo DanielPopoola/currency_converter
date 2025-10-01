@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/v1", tags=["health"])
     description="Check the health status of all system components"
 )
 async def health_check(
-    service_factory: ServiceFactory = Depends(get_service_factory)
+    service_factory: Annotated[ServiceFactory, Depends(get_service_factory)]
 ):
     """
     Comprehensive health check of all system components.
@@ -172,7 +172,7 @@ async def simple_health_check():
     description="Detailed health information about external API providers"
 )
 async def providers_health_check(
-    service_factory: ServiceFactory = Depends(get_service_factory)
+    service_factory: Annotated[ServiceFactory, Depends(get_service_factory)]
 ):
     """
     Detailed health check focused on external API providers.
@@ -224,7 +224,7 @@ async def providers_health_check(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to check provider health"
-        )
+        ) from e
     
 def _determine_overall_health(services: dict[str, Any]) -> str:
     """
@@ -243,8 +243,7 @@ def _determine_overall_health(services: dict[str, Any]) -> str:
     for service_name, service_data in services.items():
         service_status = service_data.get("status", "unknown")
         
-        if service_name in critical_services:
-            if service_status in ["unhealthy", "error", "not_initialized"]:
+        if service_name in critical_services and service_status in ["unhealthy", "error", "not_initialized"]:
                 critical_healthy = False
         
         if service_status in ["degraded", "unhealthy", "error"]:

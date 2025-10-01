@@ -23,7 +23,7 @@ async def get_rate_aggregator():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporarily unavailable"
-        )
+        ) from e
     
 
 async def get_service_factory():
@@ -38,4 +38,4 @@ async def get_service_factory():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporarily unavailable"
-        )
+        ) from e

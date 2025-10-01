@@ -1,6 +1,6 @@
-import logging
 import time
 from decimal import Decimal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/v1", tags=["conversion"])
 )
 async def convert_currency(
     request: ConvertRequest,
-    rate_service: RateAggregatorService = Depends(get_rate_aggregator)
+    rate_service: Annotated[RateAggregatorService, Depends(get_rate_aggregator)]
 ):
     """
     Convert currency amount using current exchange rates.
@@ -84,7 +84,7 @@ async def convert_currency(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Currency validation failed: {e}"
-        )
+        ) from e
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
         production_logger.log_user_request(
@@ -99,7 +99,7 @@ async def convert_currency(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporarily unavailable"
-        )
+        ) from e
     
 @router.get(
     "/convert/{from_currency}/{to_currency}/{amount}",
@@ -115,13 +115,12 @@ async def convert_currency_get(
     from_currency: str,
     to_currency: str, 
     amount: Decimal,
-    rate_service: RateAggregatorService = Depends(get_rate_aggregator)
+    rate_service: Annotated[RateAggregatorService, Depends(get_rate_aggregator)]
 ):
     """
     GET version of currency conversion for simple requests
     Example: GET /api/v1/convert/USD/EUR/100
     """
-    start_time = time.time()
     try:
         # Validate and create request object
         request = ConvertRequest(
@@ -134,8 +133,8 @@ async def convert_currency_get(
         return await convert_currency(request, rate_service)
     except HTTPException:
         raise
-    except ValueError:        
+    except ValueError as e:        
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid currency codes or amount"
-        )
+        ) from e

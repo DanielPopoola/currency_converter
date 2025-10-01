@@ -1,12 +1,12 @@
-import logging
 import time
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_rate_aggregator
 from app.api.models.requests import ExchangeRateRequest
 from app.api.models.responses import ErrorResponse, ExchangeRateResponse
-from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
+from app.monitoring.logger import get_production_logger
 from app.services.rate_aggregator import RateAggregatorService
 from app.utils.time import adjust_timestamp
 
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/v1", tags=["rates"])
 )
 async def get_exchange_rate(
     request: ExchangeRateRequest,
-    rate_service: RateAggregatorService = Depends(get_rate_aggregator)
+    rate_service: Annotated[RateAggregatorService, Depends(get_rate_aggregator)]
 ):
     """
     Get current exchange rate between two currencies.
@@ -81,7 +81,7 @@ async def get_exchange_rate(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Currency validation failed: {e}"
-        )
+        ) from e
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
         production_logger.log_user_request(
@@ -96,7 +96,7 @@ async def get_exchange_rate(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporarily unavailable" 
-        )
+        ) from e
     
 @router.get(
     "/rates/{from_currency}/{to_currency}",
@@ -111,7 +111,7 @@ async def get_exchange_rate(
 async def get_exchange_rate_get(
     from_currency: str,
     to_currency: str,
-    rate_service: RateAggregatorService = Depends(get_rate_aggregator)
+    rate_service: Annotated[RateAggregatorService, Depends(get_rate_aggregator)]
 ):
     """
     GET version of exchange rate fetching.
@@ -144,7 +144,7 @@ async def get_exchange_rate_get(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid currency codes or currency validation failed: {e}"
-        )
+        ) from e
     
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
@@ -161,4 +161,4 @@ async def get_exchange_rate_get(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporarily unavailable"
-        )
+        ) from e

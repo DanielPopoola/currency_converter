@@ -3,7 +3,7 @@ import os
 import urllib.parse
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Dict
+from typing import Any
 
 from app.monitoring.logger import EventType, LogEvent, LogLevel
 

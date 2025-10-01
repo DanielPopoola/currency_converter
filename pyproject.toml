@@ -27,6 +27,9 @@ asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100
+exclude = [
+    "tests",
+]
 
 [tool.ruff.format]
 quote-style = "single"

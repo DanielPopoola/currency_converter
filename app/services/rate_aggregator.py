@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
@@ -198,7 +198,7 @@ class RateAggregatorService:
 
     async def _try_secondary_providers(self, base: str, target: str) -> list[APICallResult]:
         """Try all secondary providers simultaneously for speed"""
-        secondary_providers = [name for name in self.providers.keys() if name != self.primary_provider]
+        secondary_providers = [name for name in self.providers if name != self.primary_provider]
 
         # Call all secondary providers concurrently
         tasks = [
@@ -427,7 +427,7 @@ class RateAggregatorService:
                 latest_rate = session.query(ExchangeRate).join(
                     ExchangeRate.currency_pair
                 ).filter(
-                    ExchangeRate.is_successful == True,
+                    ExchangeRate.is_successful,
                     ExchangeRate.currency_pair.has(
                         base_currency=base,
                         target_currency=target
@@ -536,8 +536,8 @@ class RateAggregatorService:
                 provider = session.query(APIProviderModel).filter(
                     APIProviderModel.name == provider_name
                 ).first()
-                return provider.id if provider else 1  # Fallback
-        except:
+                return provider.id if provider else 1
+        except Exception:
             return 1
         
     async def get_health_status(self) -> dict[str, Any]:

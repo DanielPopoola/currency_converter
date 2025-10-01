@@ -1,7 +1,6 @@
 import logging
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Dict, List, Optional, Set, Tuple
 
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker

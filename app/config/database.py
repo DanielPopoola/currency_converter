@@ -4,14 +4,13 @@ from collections.abc import Generator
 from contextlib import contextmanager
 
 from dotenv import load_dotenv
-
-load_dotenv()
-
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool
 
 from app.database.models import APIProvider, Base, CurrencyPair
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +108,8 @@ class DatabaseManager:
                 response_time = (session.execute(text("SELECT NOW()")).scalar() - start_time).total_seconds() * 1000 # type: ignore
 
                 # Get some basic stats for monitoring
-                provider_count = session.query(APIProvider).filter(APIProvider.is_active == True).count()
-                currency_count = session.query(CurrencyPair).filter(CurrencyPair.is_active == True).count()
+                provider_count = session.query(APIProvider).filter(APIProvider.is_active).count()
+                currency_count = session.query(CurrencyPair).filter(CurrencyPair.is_active).count()
                 
                 return {
                     "status": "healthy",
