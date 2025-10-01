@@ -1,12 +1,12 @@
-import pytest
-from fastapi.testclient import TestClient
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from fastapi.testclient import TestClient
 
-from app.api.main import app
 from app.api.dependencies import get_rate_aggregator
+from app.api.main import app
 
 
 @pytest.fixture

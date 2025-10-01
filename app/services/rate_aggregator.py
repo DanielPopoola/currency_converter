@@ -1,21 +1,19 @@
 import asyncio
-from typing import Dict, List, Optional, Any
-from datetime import datetime, UTC
-import time
 import logging
+import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any, Dict, List, Optional
 
-from app.providers.base import APIProvider, APICallResult
-from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerError
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
-from app.database.models import APIProvider as APIProviderModel, ExchangeRate, APICallLog
-from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
-
+from app.database.models import APICallLog, ExchangeRate
+from app.database.models import APIProvider as APIProviderModel
+from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
+from app.providers.base import APICallResult, APIProvider
+from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerError
 from app.services.currency_manager import CurrencyManager
-
-
 
 
 @dataclass
@@ -25,12 +23,12 @@ class AggregatedRateResult:
     target_currency: str
     rate: Decimal
     confidence_level: str
-    sources_used: List[str]
+    sources_used: list[str]
     is_primary_used: bool
     cached: bool
     timestamp: datetime
     response_time_ms: int
-    warnings: List[str] = None
+    warnings: list[str] = None
 
     def __post_init__(self):
         if self.warnings is None:
@@ -41,8 +39,8 @@ class RateAggregatorService:
     """Orchestrates multiple API providers with circuit breakers and caching"""
 
     def __init__(self,
-                 providers: Dict[str, APIProvider], # provider_name -> provider_instance
-                 circuit_breakers: Dict[str, CircuitBreaker],  # provider_name -> circuit_breaker
+                 providers: dict[str, APIProvider], # provider_name -> provider_instance
+                 circuit_breakers: dict[str, CircuitBreaker],  # provider_name -> circuit_breaker
                  redis_manager: RedisManager,
                  db_manager: DatabaseManager,
                  currency_manager: CurrencyManager,
@@ -122,7 +120,7 @@ class RateAggregatorService:
 
         return aggregated_result
     
-    async def _try_provider(self, provider_name: str, base: str, target: str) -> Optional[APICallResult]:
+    async def _try_provider(self, provider_name: str, base: str, target: str) -> APICallResult | None:
         """Try a single provider with circuit breaker protection"""
         if provider_name not in self.providers:
             self.production_logger.log_event(
@@ -198,7 +196,7 @@ class RateAggregatorService:
             )
             return None
 
-    async def _try_secondary_providers(self, base: str, target: str) -> List[APICallResult]:
+    async def _try_secondary_providers(self, base: str, target: str) -> list[APICallResult]:
         """Try all secondary providers simultaneously for speed"""
         secondary_providers = [name for name in self.providers.keys() if name != self.primary_provider]
 
@@ -229,8 +227,8 @@ class RateAggregatorService:
         return valid_results
     
     async def _aggregate_results(self, 
-                                primary_result: Optional[APICallResult],
-                                secondary_results: List[APICallResult],
+                                primary_result: APICallResult | None,
+                                secondary_results: list[APICallResult],
                                 base: str, target: str,
                                 start_time: float) -> AggregatedRateResult:
         """
@@ -417,11 +415,11 @@ class RateAggregatorService:
             # Absolute worst case - no data available
             raise Exception(f"No exchange rate data available for {base}->{target}")
 
-    async def _check_cache(self, base: str, target: str) -> Optional[Dict[str, Any]]:
+    async def _check_cache(self, base: str, target: str) -> dict[str, Any] | None:
         """Check Redis cache for fresh data (5-minute TTL)"""
         return await self.redis_manager.get_cached_rate(base, target)
     
-    async def _check_stale_cache(self, base: str, target: str) -> Optional[Dict[str, Any]]:
+    async def _check_stale_cache(self, base: str, target: str) -> dict[str, Any] | None:
         """Check for any cached data, even if expired (graceful degradation)"""
         try:
             with self.db_manager.get_session() as session:
@@ -478,8 +476,8 @@ class RateAggregatorService:
             )
 
     async def _log_results_to_db(self,
-                                 primary_result: Optional[APICallResult],
-                                 secondary_results: List[APICallResult]):
+                                 primary_result: APICallResult | None,
+                                 secondary_results: list[APICallResult]):
         """Log all API calls to database"""
         try:
             with self.db_manager.get_session() as session:
@@ -542,7 +540,7 @@ class RateAggregatorService:
         except:
             return 1
         
-    async def get_health_status(self) -> Dict[str, Any]:
+    async def get_health_status(self) -> dict[str, Any]:
         """Get health status of all providers and circuit breakers"""
         status = {
             "service": "rate_aggregator",

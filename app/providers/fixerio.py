@@ -4,10 +4,9 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-
+from app.monitoring.logger import EventType, LogEvent, LogLevel
 
 from .base import APICallResult, APIProvider, ExchangeRateResponse
-from app.monitoring.logger import EventType, LogEvent, LogLevel
 
 
 class FixerIOProvider(APIProvider):

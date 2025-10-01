@@ -1,14 +1,13 @@
 import json
 import logging
 import time
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, List, Optional, Dict
-from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
+from typing import Any, Dict, List, Optional
 
 from redis import asyncio as redis
 
-
+from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
 
 
 class CircuitBreakerState(Enum):
@@ -36,7 +35,7 @@ class RedisManager:
         return f"circuit_breaker:{provider_id}:{suffix}"
     
     # Rate caching method
-    async def rate_cache(self, base: str, target: str, rate_data: Dict[str, Any]):
+    async def rate_cache(self, base: str, target: str, rate_data: dict[str, Any]):
         """Cache exchange rate with TTL-only expiry"""
         try:
             cache_key = self._get_rate_cache_key(base, target)
@@ -63,7 +62,7 @@ class RedisManager:
             )
             return result
         
-        except Exception as e:
+        except Exception:
             self.production_logger.log_cache_operation(
                 operation="set",
                 cache_key=self._get_rate_cache_key(base, target),
@@ -72,7 +71,7 @@ class RedisManager:
             )
             return False
         
-    async def get_cached_rate(self, base: str, target: str) -> Dict[str, Any] | None:
+    async def get_cached_rate(self, base: str, target: str) -> dict[str, Any] | None:
         """Retrieve cached rate - TTL handles expiry automatically"""
         start_time = time.time()
         try:
@@ -98,7 +97,7 @@ class RedisManager:
                 )
                 return None
             
-        except Exception as e:
+        except Exception:
             duration_ms = (time.time() - start_time) * 1000
             self.production_logger.log_cache_operation(
                 operation="get",
@@ -108,7 +107,7 @@ class RedisManager:
             )
             return None
 
-    async def set_cache_validation_result(self, cache_key: str, ttl: int, cache_data: Dict[str, Any]) -> bool:
+    async def set_cache_validation_result(self, cache_key: str, ttl: int, cache_data: dict[str, Any]) -> bool:
         """Cache currency validation results with specified TTL."""
 
         try:
@@ -132,7 +131,7 @@ class RedisManager:
             )
             return False
         
-    async def get_cached_currency(self, cache_key: str) -> Optional[Dict[str, Any]]:
+    async def get_cached_currency(self, cache_key: str) -> dict[str, Any] | None:
         """Retrieve cached currency validation result"""
         start_time = time.time()
         try:
@@ -156,7 +155,7 @@ class RedisManager:
                 duration_ms=duration_ms
             )
             return validation_data
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             duration_ms = (time.time() - start_time) * 1000
             self.production_logger.log_cache_operation(
                 operation="get_validation",
@@ -339,14 +338,14 @@ class RedisManager:
             )
             return None
 
-    async def get_top_currencies(self) -> List[str]:
+    async def get_top_currencies(self) -> list[str]:
         """Retrieve cached list of top currencies."""
         try:
             cached_data = await self.redis_client.get(self.TOP_CURRENCIES_KEY)
             if cached_data:
                 return json.loads(cached_data)
             return []
-        except Exception as e:
+        except Exception:
             self.production_logger.log_cache_operation(
                 operation="get_top_currencies",
                 cache_key=self.TOP_CURRENCIES_KEY,
@@ -355,7 +354,7 @@ class RedisManager:
             )
             return []
 
-    async def set_top_currencies(self, currencies: List[str], ttl: int = 86400):
+    async def set_top_currencies(self, currencies: list[str], ttl: int = 86400):
         """Cache a list of top currencies with a specified TTL."""
         try:
             await self.redis_client.setex(self.TOP_CURRENCIES_KEY, ttl, json.dumps(currencies))
@@ -365,7 +364,7 @@ class RedisManager:
                 hit=False,
                 duration_ms=0
             )
-        except Exception as e:
+        except Exception:
             self.production_logger.log_cache_operation(
                 operation="set_top_currencies",
                 cache_key=self.TOP_CURRENCIES_KEY,
@@ -376,7 +375,7 @@ class RedisManager:
 
     # Utility methods
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check Redis connection health"""
         try:
             start_time = datetime.now()
@@ -407,7 +406,7 @@ class RedisManager:
                 )
                 return deleted
             return 0
-        except Exception as e:
+        except Exception:
             self.production_logger.log_cache_operation(
                 operation="clear_pattern",
                 cache_key=pattern,

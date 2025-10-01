@@ -1,15 +1,17 @@
 import logging
 import os
-from typing import Generator
+from collections.abc import Generator
 from contextlib import contextmanager
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
-from app.database.models import APIProvider, Base, CurrencyPair
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool
+
+from app.database.models import APIProvider, Base, CurrencyPair
 
 logger = logging.getLogger(__name__)
 

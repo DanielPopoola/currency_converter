@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from decimal import Decimal
 import logging
 import time
+from decimal import Decimal
+
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_rate_aggregator
 from app.api.models.requests import ConvertRequest
 from app.api.models.responses import ConvertResponse, ErrorResponse
+from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
 from app.services.rate_aggregator import RateAggregatorService
 from app.utils.time import adjust_timestamp
-from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
 
 production_logger = get_production_logger()
 
@@ -133,7 +134,7 @@ async def convert_currency_get(
         return await convert_currency(request, rate_service)
     except HTTPException:
         raise
-    except ValueError as e:        
+    except ValueError:        
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid currency codes or amount"

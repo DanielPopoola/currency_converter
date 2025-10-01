@@ -3,18 +3,20 @@ Shared test configuration and fixtures for provider tests.
 """
 
 import os
-import pytest
-import httpx
-from unittest.mock import AsyncMock, patch
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, UTC
+from unittest.mock import AsyncMock, patch
 
-from app.providers import FixerIOProvider, OpenExchangeProvider, CurrencyAPIProvider
+import httpx
+import pytest
+
+from app.providers import CurrencyAPIProvider, FixerIOProvider, OpenExchangeProvider
+
 from .fixtures.api_responses import (
-    FIXERIO_RESPONSES, 
-    OPENEXCHANGE_RESPONSES, 
     CURRENCYAPI_RESPONSES,
-    NETWORK_ERROR_SCENARIOS
+    FIXERIO_RESPONSES,
+    NETWORK_ERROR_SCENARIOS,
+    OPENEXCHANGE_RESPONSES,
 )
 
 # Test Configuration

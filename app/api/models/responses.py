@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, UTC
-from typing import Dict, Any
+from typing import Any, Dict
+
+from pydantic import BaseModel, Field
 
 
 class ConvertResponse(BaseModel):
@@ -54,7 +55,7 @@ class HealthResponse(BaseModel):
     
     status: str = Field(..., description="Overall system status (healthy/degraded/unhealthy)")
     timestamp: datetime = Field(..., description="When health check was performed")
-    services: Dict[str, Any] = Field(..., description="Status of individual services")
+    services: dict[str, Any] = Field(..., description="Status of individual services")
     
     class ConfigDict:
         json_schema_extra = {

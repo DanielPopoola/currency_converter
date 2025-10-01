@@ -1,14 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
 import logging
+import time
 
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_rate_aggregator
 from app.api.models.requests import ExchangeRateRequest
-from app.api.models.responses import ExchangeRateResponse, ErrorResponse
+from app.api.models.responses import ErrorResponse, ExchangeRateResponse
+from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
 from app.services.rate_aggregator import RateAggregatorService
 from app.utils.time import adjust_timestamp
-from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
-import time
 
 production_logger = get_production_logger()
 

@@ -1,5 +1,6 @@
-from fastapi import HTTPException, status
 import logging
+
+from fastapi import HTTPException, status
 
 from app.services.service_factory import service_factory
 

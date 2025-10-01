@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
 import logging
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
+
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_service_factory
 from app.api.models.responses import HealthResponse
+from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
 from app.services.service_factory import ServiceFactory
 from app.utils.time import get_adjusted_timestamp
-from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
 
 production_logger = get_production_logger()
 
@@ -225,7 +226,7 @@ async def providers_health_check(
             detail="Unable to check provider health"
         )
     
-def _determine_overall_health(services: Dict[str, Any]) -> str:
+def _determine_overall_health(services: dict[str, Any]) -> str:
     """
     Determine overall system health based on individual service statuses.
     

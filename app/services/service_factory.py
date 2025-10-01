@@ -1,18 +1,19 @@
+import logging
 import os
 from typing import Dict
-import logging
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
-from app.providers import APIProvider, CurrencyAPIProvider, FixerIOProvider, OpenExchangeProvider
-from app.services import CircuitBreaker, RateAggregatorService, CurrencyManager
+from datetime import UTC, datetime
+
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
 from app.database.models import APIProvider as APIProviderModel
-from app.monitoring.logger import get_production_logger, LogEvent, EventType, LogLevel
-from datetime import datetime, UTC
-
+from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
+from app.providers import APIProvider, CurrencyAPIProvider, FixerIOProvider, OpenExchangeProvider
+from app.services import CircuitBreaker, CurrencyManager, RateAggregatorService
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,8 @@ class ServiceFactory:
             database_url=os.getenv("DATABASE_URL", "database_url")
         )
 
-        self.providers: Dict[str, APIProvider] = {}
-        self.circuit_breakers: Dict[str, CircuitBreaker] = {}
+        self.providers: dict[str, APIProvider] = {}
+        self.circuit_breakers: dict[str, CircuitBreaker] = {}
         self.rate_aggregator: RateAggregatorService = None
         self.currency_manager: CurrencyManager
 
@@ -99,7 +100,7 @@ class ServiceFactory:
         )
         return self.rate_aggregator
     
-    async def _get_provider_ids(self) -> Dict[str, int]:
+    async def _get_provider_ids(self) -> dict[str, int]:
         """Get provider IDs from database"""
         try:
             with self.db_manager.get_session() as session:
@@ -140,7 +141,7 @@ class ServiceFactory:
         """Get database manager instance"""  
         return self.db_manager
     
-    async def get_health_status(self) -> Dict:
+    async def get_health_status(self) -> dict:
         """Get health status of all services"""
         if not self.rate_aggregator:
             return {"status": "not_initialized"}

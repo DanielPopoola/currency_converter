@@ -2,15 +2,17 @@
 Tests for the CurrencyAPI provider implementation.
 """
 import os
-import pytest
-import httpx
-from unittest.mock import patch, Mock, AsyncMock
-from decimal import Decimal
 import urllib.parse
+from decimal import Decimal
+from unittest.mock import AsyncMock, Mock, patch
+
+import httpx
+import pytest
 
 from app.providers import CurrencyAPIProvider, ExchangeRateResponse
+
+from .conftest import assert_api_call_result, assert_exchange_rate_response, currencyapi_provider
 from .fixtures.api_responses import CURRENCYAPI_RESPONSES
-from .conftest import assert_exchange_rate_response, assert_api_call_result, currencyapi_provider
 
 
 class TestCurrencyAPIProviderInitialization:

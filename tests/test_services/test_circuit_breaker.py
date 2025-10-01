@@ -1,12 +1,12 @@
-import pytest
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
-from datetime import datetime, UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import pytest
 
-from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerError
-from app.cache.redis_manager import RedisManager, CircuitBreakerState
+from app.cache.redis_manager import CircuitBreakerState, RedisManager
 from app.config.database import DatabaseManager
+from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerError
 
 
 class TestCircuitBreakerBasicBehavior:

@@ -1,11 +1,11 @@
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime
 
-
-from app.api.main import app
 from app.api.dependencies import get_service_factory
+from app.api.main import app
 
 
 @pytest.fixture

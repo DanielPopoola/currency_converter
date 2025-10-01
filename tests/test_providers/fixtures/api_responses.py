@@ -4,8 +4,7 @@ Sample API responses for testing all providers.
 These are real-world examples of what each API returns.
 """
 
-from datetime import datetime, UTC
-
+from datetime import UTC, datetime
 
 # FixerIO API Responses
 FIXERIO_RESPONSES = {

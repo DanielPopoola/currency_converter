@@ -1,14 +1,12 @@
 import logging
-from datetime import datetime, UTC
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from typing import Any
 
-
-from app.cache.redis_manager import RedisManager, CircuitBreakerState
-from app.database.models import CircuitBreakerLog
+from app.cache.redis_manager import CircuitBreakerState, RedisManager
 from app.config.database import DatabaseManager
-from app.monitoring.logger import get_production_logger, EventType, LogEvent, LogLevel
-
-
+from app.database.models import CircuitBreakerLog
+from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
 
 
 class CircuitBreakerError(Exception):
@@ -77,7 +75,7 @@ class CircuitBreaker:
             result = await func()
             await self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             await self._on_failure()
             raise
 

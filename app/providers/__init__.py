@@ -1,4 +1,4 @@
-from .base import APIProvider, ExchangeRateResponse, APICallResult
+from .base import APICallResult, APIProvider, ExchangeRateResponse
 from .currencyapi import CurrencyAPIProvider
 from .fixerio import FixerIOProvider
 from .openexchange import OpenExchangeProvider

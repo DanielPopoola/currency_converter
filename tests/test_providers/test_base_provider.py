@@ -3,16 +3,16 @@ Tests for the abstract base APIProvider class.
 These tests ensure our foundation works correctly.
 """
 
+import urllib.parse
+from datetime import UTC, datetime
 from typing import Any
+from unittest.mock import AsyncMock, Mock, patch
+
+import httpx
 import pytest
 import pytest_asyncio
-import httpx
-import urllib.parse
-from unittest.mock import AsyncMock, patch, Mock
-from datetime import datetime, UTC
 
-
-from app.providers.base import APIProvider, APICallResult, ExchangeRateResponse
+from app.providers.base import APICallResult, APIProvider, ExchangeRateResponse
 
 
 class ConcreteProvider(APIProvider):

@@ -1,15 +1,15 @@
-import pytest
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
-from datetime import datetime, UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-from app.services.rate_aggregator import RateAggregatorService, AggregatedRateResult
-from app.providers.base import APICallResult, ExchangeRateResponse
-from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerError
+import pytest
+
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
+from app.providers.base import APICallResult, ExchangeRateResponse
 from app.services import CircuitBreaker, CurrencyManager
-
+from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerError
+from app.services.rate_aggregator import AggregatedRateResult, RateAggregatorService
 
 
 class TestRateAggregatorHappyPath:
@@ -532,7 +532,7 @@ class TestRateAggregatorIntegration:
             "OpenExchange": AsyncMock(), 
             "CurrencyAPI": AsyncMock()
         }
-        circuit_breakers = {name: AsyncMock() for name in providers.keys()}
+        circuit_breakers = {name: AsyncMock() for name in providers}
         mock_redis = AsyncMock()
         mock_db = Mock()
         mock_currency_manager = AsyncMock()

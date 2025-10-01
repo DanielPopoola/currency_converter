@@ -3,11 +3,11 @@ from sqlalchemy import (
     TIMESTAMP,
     Boolean,
     Column,
+    DateTime,
     ForeignKey,
     Integer,
     String,
     Text,
-    DateTime,
     UniqueConstraint,
 )
 from sqlalchemy.orm import declarative_base, relationship

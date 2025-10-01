@@ -3,16 +3,15 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import ValidationException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import ValidationException
 
-from app.api.routes import convert, rates, health
-from app.services.service_factory import service_factory
+from app.api.routes import convert, health, rates
 from app.config.database import DatabaseManager
 from app.monitoring.logger import get_production_logger
-
+from app.services.service_factory import service_factory
 
 logger = logging.getLogger(__name__)
 

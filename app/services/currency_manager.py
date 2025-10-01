@@ -1,17 +1,16 @@
 import logging
 import time
-from typing import Dict, List, Set, Optional, Tuple
-from datetime import datetime, UTC, timedelta
+from datetime import UTC, datetime, timedelta
+from typing import Dict, List, Optional, Set, Tuple
 
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import func
+from sqlalchemy.orm import sessionmaker
 
-from app.providers.base import APIProvider
-from app.database.models import SupportedCurrency
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
-from app.monitoring.logger import get_production_logger, LogLevel, LogEvent, EventType
-
+from app.database.models import SupportedCurrency
+from app.monitoring.logger import EventType, LogEvent, LogLevel, get_production_logger
+from app.providers.base import APIProvider
 
 
 class CurrencyManager:
@@ -31,7 +30,7 @@ class CurrencyManager:
         self.REFRESH_INTERVAL_DAYS = 7
 
 
-    async def populate_supported_currencies(self, providers: Dict[str, APIProvider]) -> List[str]: 
+    async def populate_supported_currencies(self, providers: dict[str, APIProvider]) -> list[str]: 
         """Fetch and merge supported currencies from all providers"""
         start_time = time.time()
         all_currencies = set()
@@ -129,7 +128,7 @@ class CurrencyManager:
         
         return list(all_currencies)
     
-    async def should_populate_currencies(self) -> Tuple[bool, str]:
+    async def should_populate_currencies(self) -> tuple[bool, str]:
         """Determine if we need to fetch supported currencies from external providers"""
         start_time = time.time()
         log_context = {"check_reason": None, "database_count": 0, "data_age_days": None}
@@ -214,7 +213,7 @@ class CurrencyManager:
                 LogEvent(
                     event_type=EventType.DATABASE_OPERATION,
                     level=LogLevel.ERROR,
-                    message=f"Currency population check failed.",
+                    message="Currency population check failed.",
                     timestamp=datetime.now(),
                     duration_ms=(time.time() - start_time) * 1000,
                     error_context={"error": str(e), "details": log_context},
@@ -222,7 +221,7 @@ class CurrencyManager:
             )
             return True, reason
 
-    async def populate_if_needed(self, providers: Dict[str, APIProvider]) -> bool:
+    async def populate_if_needed(self, providers: dict[str, APIProvider]) -> bool:
         """
         Only populate currencies if needed (first time or data is stale).
         
@@ -253,7 +252,7 @@ class CurrencyManager:
             )
             return False
         
-    async def _store_currencies_in_db(self, currencies: Set[str]):
+    async def _store_currencies_in_db(self, currencies: set[str]):
         """Store supported currencies in the database."""
         Session = sessionmaker(bind=self.db_manager.engine)
         with Session() as session:
@@ -289,7 +288,7 @@ class CurrencyManager:
             duration_ms=0,
         )
 
-    async def validate_currencies(self, base: str, target: str) -> Tuple[bool, Optional[str]]:
+    async def validate_currencies(self, base: str, target: str) -> tuple[bool, str | None]:
         """
         Validate currencies with comprehensive logging and performance tracking
         
@@ -452,7 +451,7 @@ class CurrencyManager:
                     LogEvent(
                         event_type=EventType.DATABASE_OPERATION,
                         level=LogLevel.ERROR,
-                        message=f"Database error during currency validation",
+                        message="Database error during currency validation",
                         timestamp=datetime.now(),
                         error_context={
                             "error": str(db_error),
@@ -492,7 +491,7 @@ class CurrencyManager:
             return True, None
         
     async def _cache_validation_result(self, base: str, target: str, is_valid: bool,
-                                       error_message: Optional[str] = None, ttl: int = 900):
+                                       error_message: str | None = None, ttl: int = 900):
         """Cache validation results to avoid repeated database lookups"""
         if not is_valid and error_message is None:
             return 

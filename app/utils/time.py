@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
+
 
 def get_adjusted_timestamp() -> datetime:
     """Returns the current UTC time plus one hour."""

@@ -1,15 +1,15 @@
-import logging
 import json
+import logging
 import sys
-from datetime import datetime, UTC
-from typing import Dict, Any, Optional, List
-from pathlib import Path
+import time
 import traceback
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
-from dataclasses import dataclass, asdict
-from contextlib import contextmanager
-import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 class CustomJSONEncoder(json.JSONEncoder):
@@ -173,13 +173,13 @@ class LogEvent:
     level: LogLevel
     message: str
     timestamp: datetime
-    duration_ms: Optional[float] = None
-    user_context: Optional[Dict[str, Any]] = None
-    api_context: Optional[Dict[str, Any]] = None
-    performance_context: Optional[Dict[str, Any]] = None
-    error_context: Optional[Dict[str, Any]] = None
+    duration_ms: float | None = None
+    user_context: dict[str, Any] | None = None
+    api_context: dict[str, Any] | None = None
+    performance_context: dict[str, Any] | None = None
+    error_context: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data['timestamp'] = self.timestamp.isoformat()
         data['event_type'] = self.event_type.value
@@ -209,7 +209,7 @@ class ProductionLogger:
         log_func(event.message, extra=extra)
 
     def log_currency_validation(self, from_currency: str, to_currency: str,
-                                validation_result: Dict[str, Any],  duration_ms: float):
+                                validation_result: dict[str, Any],  duration_ms: float):
         event = LogEvent(
             event_type=EventType.CURRENCY_VALIDATION,
             level=LogLevel.INFO if validation_result['valid'] else LogLevel.WARNING,
@@ -230,7 +230,7 @@ class ProductionLogger:
         self.log_event(event)
 
     def log_api_call(self, provider_name: str, endpoint: str, success: bool, response_time_ms: float,
-                     error_message: Optional[str] = None, rate_data: Optional[Dict[str, Any]] = None):
+                     error_message: str | None = None, rate_data: dict[str, Any] | None = None):
         event = LogEvent(
             event_type=EventType.API_CALL,
             level=LogLevel.INFO if success else LogLevel.ERROR,
@@ -266,8 +266,8 @@ class ProductionLogger:
         self.log_event(event)
 
     def log_cache_operation(self, operation: str, cache_key: str, hit: bool, 
-                          duration_ms: float, data_age_minutes: Optional[int] = None,
-                          level: LogLevel = LogLevel.DEBUG, error_message: Optional[str] = None):
+                          duration_ms: float, data_age_minutes: int | None = None,
+                          level: LogLevel = LogLevel.DEBUG, error_message: str | None = None):
         message = f"Cache {operation} for {cache_key}: {'HIT' if hit else 'MISS'}"
         if error_message:
             message += f" - ERROR: {error_message}"
@@ -290,9 +290,9 @@ class ProductionLogger:
         self.log_event(event)
     
     def log_rate_aggregation(self, base: str, target: str, final_rate: float, 
-                           confidence_level: str, sources_used: List[str],
+                           confidence_level: str, sources_used: list[str],
                            is_primary_used: bool, was_cached: bool, 
-                           total_duration_ms: float, warnings: Optional[List[str]] = None):
+                           total_duration_ms: float, warnings: list[str] | None = None):
         event = LogEvent(
             event_type=EventType.RATE_AGGREGATION,
             level=LogLevel.WARNING if confidence_level == "low" else LogLevel.INFO,
@@ -318,9 +318,9 @@ class ProductionLogger:
         )
         self.log_event(event)
 
-    def log_user_request(self, endpoint: str, request_data: Dict[str, Any],
+    def log_user_request(self, endpoint: str, request_data: dict[str, Any],
                         success: bool, response_time_ms: float, 
-                        error_message: Optional[str] = None):
+                        error_message: str | None = None):
         event = LogEvent(
             event_type=EventType.USER_REQUEST,
             level=LogLevel.INFO if success else LogLevel.ERROR,
@@ -348,8 +348,8 @@ class ProductionLogger:
 
 
 # Global logger instances
-app_logger: Optional[AppLogger] = None
-production_logger: Optional[ProductionLogger] = None
+app_logger: AppLogger | None = None
+production_logger: ProductionLogger | None = None
 
 
 def get_production_logger() -> ProductionLogger:

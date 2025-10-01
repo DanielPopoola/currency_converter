@@ -1,13 +1,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, List
-from app.monitoring.logger import get_production_logger
 
 import httpx
 
-
+from app.monitoring.logger import get_production_logger
 
 
 @dataclass
@@ -22,7 +21,7 @@ class ExchangeRateResponse:
     is_successful: bool = True
     error_message: str | None = None
 
-ParsedData = ExchangeRateResponse | List[ExchangeRateResponse] | list[str]
+ParsedData = ExchangeRateResponse | list[ExchangeRateResponse] | list[str]
 
 @dataclass
 class APICallResult:

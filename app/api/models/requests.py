@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field, field_validator, ValidationInfo
 from decimal import Decimal
+
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class ConvertRequest(BaseModel):

@@ -3,16 +3,18 @@ Tests for the FixerIO provider implementation.
 Tests both the provider-specific logic and integration with the base class.
 """
 import os
-import pytest
-import httpx
-from unittest.mock import patch, Mock, AsyncMock
-from datetime import datetime, UTC
 import urllib.parse
+from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock, Mock, patch
 
-from app.providers import FixerIOProvider, ExchangeRateResponse, APICallResult
+import httpx
+import pytest
+
+from app.providers import APICallResult, ExchangeRateResponse, FixerIOProvider
+
+from .conftest import assert_api_call_result, assert_exchange_rate_response, fixerio_provider
 from .fixtures.api_responses import FIXERIO_RESPONSES
-from .conftest import assert_exchange_rate_response, assert_api_call_result, fixerio_provider
 
 
 class TestFixerIOProviderInitialization:

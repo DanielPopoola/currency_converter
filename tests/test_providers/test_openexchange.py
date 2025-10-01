@@ -3,16 +3,18 @@
 Tests for the OpenExchange provider implementation.
 """
 import os
-import pytest
-import httpx
-from unittest.mock import patch, Mock, AsyncMock
-from datetime import datetime, UTC
-from decimal import Decimal
 import urllib.parse
+from datetime import UTC, datetime
+from decimal import Decimal
+from unittest.mock import AsyncMock, Mock, patch
 
-from app.providers import OpenExchangeProvider, ExchangeRateResponse, APICallResult
+import httpx
+import pytest
+
+from app.providers import APICallResult, ExchangeRateResponse, OpenExchangeProvider
+
+from .conftest import assert_api_call_result, assert_exchange_rate_response, openexchange_provider
 from .fixtures.api_responses import OPENEXCHANGE_RESPONSES
-from .conftest import assert_exchange_rate_response, assert_api_call_result, openexchange_provider
 
 
 class TestOpenExchangeProviderInitialization:

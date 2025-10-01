@@ -1,14 +1,13 @@
-import os
 import logging
+import os
 import urllib.parse
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Dict
 
-from .base import APIProvider, ExchangeRateResponse, APICallResult
 from app.monitoring.logger import EventType, LogEvent, LogLevel
 
-
+from .base import APICallResult, APIProvider, ExchangeRateResponse
 
 
 class CurrencyAPIProvider(APIProvider):
@@ -23,7 +22,7 @@ class CurrencyAPIProvider(APIProvider):
             extra_headers={"apikey": api_key}
         )
 
-    def _build_request_url(self, endpoint: str, params: Dict[str, Any]) -> str:
+    def _build_request_url(self, endpoint: str, params: dict[str, Any]) -> str:
         """Build CurrencyAPI URL (authentication is handled by headers)"""
         return f"{self.base_url}/{endpoint}?{urllib.parse.urlencode(params)}"
 
