@@ -124,16 +124,16 @@ class CircuitBreaker:
             return
         
         # Increment failure count
-        failure_count = await self.redis_manager.increment_failure_count(self.provider_id)
+        new_failure_count = await self.redis_manager.increment_failure_count(self.provider_id)
         
         # Check if we should open the circuit
-        if failure_count >= self.failure_threshold:
-            await self._transition_to_open(f"{failure_count}_consecutive_failures")
+        if new_failure_count >= self.failure_threshold:
+            await self._transition_to_open(f"{new_failure_count}_consecutive_failures")
         else:
             self.logger.warning(
                 "API failure for {provider_name}: {failure_count}/{failure_threshold}",
                 provider_name=self.provider_name,
-                failure_count=failure_count,
+                failure_count=new_failure_count,
                 failure_threshold=self.failure_threshold,
                 event_type="CIRCUIT_BREAKER",
                 timestamp=datetime.now()
