@@ -93,7 +93,7 @@ class TestRateAggregatorHappyPath:
             "is_primary_used": True,
             "timestamp": datetime.now(UTC).isoformat()
         }
-        mock_redis.get_cached_rate.return_value = cached_rate
+        mock_redis.get_latest_rate.return_value = cached_rate
 
         result = await aggregator.get_exchange_rate("USD", "EUR")
 
@@ -112,7 +112,7 @@ class TestRateAggregatorHappyPath:
         """Test: When only primary succeeds, return primary result"""
         # Arrange
         mock_redis = mock_dependencies["redis_manager"]
-        mock_redis.get_cached_rate.return_value = None
+        mock_redis.get_latest_rate.return_value = None
 
         # Primary succeeds
         primary_result = self.create_successful_api_result("FixerIO", "1.23")
@@ -132,14 +132,14 @@ class TestRateAggregatorHappyPath:
         assert result.is_primary_used is True
         
         # Should cache the result
-        mock_redis.rate_cache.assert_called_once()
+        mock_redis.set_latest_rate.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_primary_and_secondary_success_returns_average(self, aggregator, mock_dependencies):
         """Test: When both primary and secondary succeed, return average"""
         # Arrange
         mock_redis = mock_dependencies["redis_manager"]
-        mock_redis.get_cached_rate.return_value = None
+        mock_redis.get_latest_rate.return_value = None
 
         # Primary succeeds with rate 1.20
         primary_result = self.create_successful_api_result("FixerIO", "1.20")
@@ -160,7 +160,7 @@ class TestRateAggregatorHappyPath:
         assert result.is_primary_used is False  # Using average, not just primary
         
         # Should cache the averaged result
-        mock_redis.rate_cache.assert_called_once()
+        mock_redis.set_latest_rate.assert_called_once()
 
 
 class TestRateAggregatorFailureScenarios:
@@ -204,7 +204,7 @@ class TestRateAggregatorFailureScenarios:
         """Test: Primary fails, secondary succeeds"""
         # Arrange
         aggregator, _, circuit_breakers, mock_redis, _ = aggregator_setup
-        mock_redis.get_cached_rate.return_value = None
+        mock_redis.get_latest_rate.return_value = None
 
         # Primary fails
         circuit_breakers["FixerIO"].call.side_effect = CircuitBreakerError("FixerIO", 5, datetime.now(UTC))
@@ -249,7 +249,7 @@ class TestRateAggregatorFailureScenarios:
         aggregator.providers = providers
         aggregator.circuit_breakers = circuit_breakers
 
-        mock_redis.get_cached_rate.return_value = None
+        mock_redis.get_latest_rate.return_value = None
 
         # Primary fails
         circuit_breakers["FixerIO"].call.side_effect = Exception("Primary down")
@@ -297,7 +297,7 @@ class TestRateAggregatorFailureScenarios:
 
         aggregator, _, circuit_breakers, mock_redis, _ = aggregator_setup
 
-        mock_redis.get_cached_rate.return_value = None
+        mock_redis.get_latest_rate.return_value = None
         
         # All APIs fail
         circuit_breakers["FixerIO"].call.side_effect = Exception("Primary down")
@@ -328,7 +328,7 @@ class TestRateAggregatorFailureScenarios:
         aggregator, _, circuit_breakers, mock_redis, _ = aggregator_setup
         
         # No cache at all
-        mock_redis.get_cached_rate.return_value = None
+        mock_redis.get_latest_rate.return_value = None
         
         # All APIs fail
         circuit_breakers["FixerIO"].call.side_effect = Exception("Down")
@@ -372,7 +372,7 @@ class TestRateAggregatorCachingLogic:
         aggregator, mock_redis = cache_test_setup
         
         # No cache initially
-        mock_redis.get_cached_rate.return_value = None
+        mock_redis.get_latest_rate.return_value = None
         
         # API succeeds
         api_result = APICallResult(
@@ -397,8 +397,8 @@ class TestRateAggregatorCachingLogic:
         assert result.rate == Decimal("1.20")
         
         # Should cache the result
-        mock_redis.rate_cache.assert_called_once()
-        cache_call = mock_redis.rate_cache.call_args
+        mock_redis.set_latest_rate.assert_called_once()
+        cache_call = mock_redis.set_latest_rate.call_args
         assert cache_call[0][0] == "USD"  # base currency
         assert cache_call[0][1] == "EUR"  # target currency
         # Third argument is the cache data dict
@@ -420,7 +420,7 @@ class TestRateAggregatorCachingLogic:
             "is_primary_used": True,
             "timestamp": datetime.now(UTC).isoformat()
         }
-        mock_redis.get_cached_rate.return_value = cached_data
+        mock_redis.get_latest_rate.return_value = cached_data
         
         # Act
         result = await aggregator.get_exchange_rate("USD", "EUR")
@@ -430,7 +430,7 @@ class TestRateAggregatorCachingLogic:
         assert result.rate == Decimal("1.30")
         
         # Should NOT write to cache again
-        mock_redis.rate_cache.assert_not_called()
+        mock_redis.set_latest_rate.assert_not_called()
 
 
 class TestRateAggregatorEdgeCases:
@@ -455,7 +455,7 @@ class TestRateAggregatorEdgeCases:
             currency_manager=mock_currency_manager
         )
         
-        mock_redis.get_cached_rate.return_value = None
+        mock_redis.get_latest_rate.return_value = None
         
         # API returns an error for invalid currency
         failed_result = APICallResult(
@@ -490,7 +490,7 @@ class TestRateAggregatorEdgeCases:
             currency_manager=mock_currency_manager
         )
         
-        mock_redis.get_cached_rate.return_value = None
+        mock_redis.get_latest_rate.return_value = None
         
         # Mock a slow API response
         slow_result = APICallResult(
@@ -548,7 +548,7 @@ class TestRateAggregatorIntegration:
         )
         
         # No cache initially
-        mock_redis.get_cached_rate.return_value = None
+        mock_redis.get_latest_rate.return_value = None
         
         # All APIs succeed with different rates
         primary_result = APICallResult(
@@ -597,4 +597,4 @@ class TestRateAggregatorIntegration:
         assert result.cached is False
         
         # Should cache the aggregated result
-        mock_redis.rate_cache.assert_called_once()
+        mock_redis.set_latest_rate.assert_called_once()
