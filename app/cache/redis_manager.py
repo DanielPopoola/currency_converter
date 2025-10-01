@@ -1,9 +1,8 @@
 import json
-import logging
 import time
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, AsyncGenerator
 
 from redis import asyncio as redis
 
@@ -34,76 +33,104 @@ class RedisManager:
         """Generate circuit breaker keys"""
         return f"circuit_breaker:{provider_id}:{suffix}"
     
-    # Rate caching method
-    async def rate_cache(self, base: str, target: str, rate_data: dict[str, Any]):
-        """Cache exchange rate with TTL-only expiry"""
+    # Rate caching methods
+    async def set_latest_rate(self, base: str, target: str, rate_data: dict[str, Any]) -> bool:
+        """
+        Store the latest rate in a simple key-value format for fast REST API lookups.
+        
+        Key format: rates:BASE:TARGET (e.g., rates:USD:EUR)
+        
+        Args:
+            base: Base currency code
+            target: Target currency code
+            rate_data: Dictionary containing rate information
+        
+        Returns:
+            True if successful, False otherwise
+        """
         try:
-            cache_key = self._get_rate_cache_key(base, target)
-
-            # Add metadata to cached data
+            key = self._get_rate_cache_key(base, target)
+            
+            # Add metadata
             cache_data = {
                 **rate_data,
-                "cached_at": datetime.now(tz=UTC).isoformat(),
-                "cache_key": cache_key
+                "base_currency": base,
+                "target_currency": target,
+                "updated_at": datetime.now(tz=UTC).isoformat()
             }
-
-            # Store with TTL
+            
             result = await self.redis_client.setex(
-                cache_key,
+                key,
                 self.RATE_CACHE_TTL,
                 json.dumps(cache_data)
             )
-
+            
             self.production_logger.log_cache_operation(
-                operation="set",
-                cache_key=cache_key,
+                operation="set_latest_rate",
+                cache_key=key,
                 hit=False,
-                duration_ms=0 # Not measured here
+                duration_ms=0
             )
-            return result
-        
-        except Exception:
+            
+            return bool(result)
+            
+        except Exception as e:
             self.production_logger.log_cache_operation(
-                operation="set",
+                operation="set_latest_rate",
                 cache_key=self._get_rate_cache_key(base, target),
                 hit=False,
                 duration_ms=0,
+                error_message=str(e)
             )
             return False
+
+
+    async def get_latest_rate(self, base: str, target: str) -> dict[str, Any] | None:
+        """
+        Retrieve the latest rate from the fast-lookup key.
+        Used by REST API for instant responses.
         
-    async def get_cached_rate(self, base: str, target: str) -> dict[str, Any] | None:
-        """Retrieve cached rate - TTL handles expiry automatically"""
+        Args:
+            base: Base currency code
+            target: Target currency code
+        
+        Returns:
+            Dictionary with rate data or None if not found
+        """
         start_time = time.time()
         try:
-            cache_key = self._get_rate_cache_key(base, target)
-            cached_data = await self.redis_client.get(cache_key)
+            key = self._get_rate_cache_key(base, target)
+            cached_data = await self.redis_client.get(key)
             duration_ms = (time.time() - start_time) * 1000
-
+            
             if cached_data:
                 rate_data = json.loads(cached_data)
+                
                 self.production_logger.log_cache_operation(
-                    operation="get",
-                    cache_key=cache_key,
+                    operation="get_latest_rate",
+                    cache_key=key,
                     hit=True,
                     duration_ms=duration_ms
                 )
+                
                 return rate_data
             else:
                 self.production_logger.log_cache_operation(
-                    operation="get",
-                    cache_key=cache_key,
+                    operation="get_latest_rate",
+                    cache_key=key,
                     hit=False,
                     duration_ms=duration_ms
                 )
                 return None
-            
-        except Exception:
+                
+        except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             self.production_logger.log_cache_operation(
-                operation="get",
+                operation="get_latest_rate",
                 cache_key=self._get_rate_cache_key(base, target),
                 hit=False,
                 duration_ms=duration_ms,
+                error_message=str(e)
             )
             return None
 
@@ -174,8 +201,7 @@ class RedisManager:
                 error_message=str(e)
             )
             return None
-        
-        
+          
     # Circuit breaker method
 
     async def get_circuit_breaker_state(self, provider_id: int) -> CircuitBreakerState:
@@ -371,6 +397,115 @@ class RedisManager:
                 hit=False,
                 duration_ms=0,
             )
+
+
+    # Pub/Sub methods
+    async def publish_rate_update(self, base: str, target: str, rate_data: dict[str, Any]) -> int:
+        """
+        Publish a rate update to the rates:broadcast channel
+
+        Args:
+            base: Base currency code
+            target: Target currency code
+            rate_data: Dictionary containing rate, timestamp, sources, etc.
+    
+        Returns:
+            Number of subscribers that received the message
+        """
+        try:
+            channel = "rates:broadcast"
+
+            # Prepare message payload
+            message = {
+                "pair": f"{base}/{target}",
+                "base_currency": base,
+                "target_currency": target,
+                **rate_data
+            }
+
+            # Publish to Redis channel
+            subscriber_count = await self.redis_client.publish(channel, json.dumps(message))
+
+            self.production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.CACHE_OPERATION,
+                    level=LogLevel.DEBUG,
+                    message=f"Published rate update for {base}/{target} to {subscriber_count} suscribers",
+                    timestamp=datetime.now(),
+                    api_context={
+                        'channel': channel,
+                        'pair': f"{base}/{target}",
+                        'suscriber_count': subscriber_count
+                    }
+                )
+            )
+            return subscriber_count
+        except Exception as e:
+            self.production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.CACHE_OPERATION,
+                    level=LogLevel.ERROR,
+                    message=f"Failed to publish rate update: {e}",
+                    timestamp=datetime.now(),
+                    error_context={'error': str(e)}
+                )
+            )
+        return 0
+    
+    async def suscribe_to_rates(self) -> AsyncGenerator[dict[str, Any], None]:
+        """
+        Subscribe to the rates:broadcast channel and yield incoming messages.
+        
+        This is an async generator that continuously listens for rate updates.
+        Used by WebSocket handlers to receive real-time updates.
+
+        Yields:
+            Dictionary containing rate update data
+        """
+        pubsub = self.redis_client.pubsub()
+
+        try:
+            await pubsub.subscribe("rates:broadcast")
+            
+            self.production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.CACHE_OPERATION,
+                    level=LogLevel.INFO,
+                    message="Suscribed to rates:broadcast channel",
+                    timestamp=datetime.now()
+                )
+            )
+
+            # Listen for messags indefinitely
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    try:
+                        data = json.loads(message["data"])
+                        yield data
+                    except json.JSONDecodeError as e:
+                        self.production_logger.log_event(
+                            LogEvent(
+                                event_type=EventType.CACHE_OPERATION,
+                                level=LogLevel.ERROR,
+                                message=f"Failed to parse pubsub message: {e}",
+                                timestamp=datetime.now(),
+                                error_context={'error': str(e), 'raw_message': message}
+                            )
+                        )
+                    continue
+        except Exception as e:
+            self.production_logger.log_event(
+                LogEvent(
+                    event_type=EventType.CACHE_OPERATION,
+                    level=LogLevel.ERROR,
+                    message=f"Pub/Sub subscription error: {e}",
+                    timestamp=datetime.now(),
+                    error_context={'error': str(e)}
+                )
+            )   
+        finally:
+            await pubsub.unsubscribe("rates:broadcast")
+            await pubsub.close()
 
 
     # Utility methods
