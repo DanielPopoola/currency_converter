@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   lint-and-test:
@@ -65,7 +65,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     needs: lint-and-test
-    if: github.ref == 'refs/heads/main' # Only run on push to main, not on PRs
+    if: github.ref == 'refs/heads/master' # Only run on push to master, not on PRs
 
     steps:
     - name: Checkout code
@@ -85,9 +85,3 @@ jobs:
         file: ./Dockerfile
         push: true
         tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
-
-# Note on Migrations in Production:
-# The 'alembic upgrade head' command in the test job is for the temporary test database.
-# In a real-world deployment, you would run your database migrations against your
-# staging or production database as part of your deployment process.
-# Your 'docker/entrypoint.sh' script is the right place to handle this for your deployed application.
