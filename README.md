@@ -88,7 +88,7 @@ sequenceDiagram
         F-->>C: 400 Bad Request
     end
     F->>RA: get_exchange_rate(from, to)
-    RA->>RM: get_cached_rate(from, to)
+    RA->>RM: get_latest_rate(from, to)
     alt Cache Hit
         RM-->>RA: cached_rate
         RA-->>F: AggregatedRateResult (cached)
@@ -107,7 +107,7 @@ sequenceDiagram
         AP-->>CB: APICallResult
         CB-->>RA: APICallResult (secondary)
         RA->>RA: _aggregate_results()
-        RA->>RM: rate_cache(aggregated_result)
+        RA->>RM: set_latest_rate(aggregated_result)
         RA->>DB: _log_results_to_db()
         RA-->>F: AggregatedRateResult
     end

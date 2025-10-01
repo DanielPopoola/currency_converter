@@ -417,7 +417,7 @@ class RateAggregatorService:
 
     async def _check_cache(self, base: str, target: str) -> dict[str, Any] | None:
         """Check Redis cache for fresh data (5-minute TTL)"""
-        return await self.redis_manager.get_cached_rate(base, target)
+        return await self.redis_manager.get_latest_rate(base, target)
     
     async def _check_stale_cache(self, base: str, target: str) -> dict[str, Any] | None:
         """Check for any cached data, even if expired (graceful degradation)"""
@@ -469,7 +469,7 @@ class RateAggregatorService:
                 "warnings": result.warnings
             }
             
-            await self.redis_manager.rate_cache(
+            await self.redis_manager.set_latest_rate(
                 result.base_currency, 
                 result.target_currency, 
                 cache_data
