@@ -1,8 +1,9 @@
 import json
 import time
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from redis import asyncio as redis
 
