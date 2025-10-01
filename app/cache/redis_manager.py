@@ -306,12 +306,40 @@ class RedisManager:
             return 0
         
     async def increment_failure_count(self, provider_id: int) -> int:
-        """Increment failure count and return new count"""
+        """Increment failure count atomically and return the new count."""
+        failures_key = self._get_circuit_breaker_key(provider_id, "failures")
         try:
-            failures_key = self._get_circuit_breaker_key(provider_id, "failures")
-            new_count = await self.redis_client.incr(failures_key)
-            await self.redis_client.expire(failures_key, self.CIRCUIT_BREAKER_TTL)
-            
+            # Use a pipeline to ensure INCR and EXPIRE are atomic
+            async with self.redis_client.pipeline(transaction=True) as pipe:
+                pipe.incr(failures_key)
+                pipe.expire(failures_key, self.CIRCUIT_BREAKER_TTL)
+                results = await pipe.execute()
+
+            # Defensive check of results
+            if not results or not isinstance(results, list) or len(results) < 1:
+                self.logger.error(
+                    "Redis pipeline for increment_failure_count returned unexpected data",
+                    provider_id=provider_id,
+                    results=str(results),
+                    event_type="CIRCUIT_BREAKER"
+                )
+                return 0
+
+            new_count = results[0]
+            if not isinstance(new_count, int):
+                self.logger.error(
+                    "Redis INCR command did not return an integer",
+                    provider_id=provider_id,
+                    new_count_type=str(type(new_count)),
+                    new_count_value=str(new_count),
+                    event_type="CIRCUIT_BREAKER"
+                )
+                # Attempt to recover if it's a string representation of an int
+                try:
+                    new_count = int(new_count)
+                except (ValueError, TypeError):
+                    return 0
+
             self.logger.debug(
                 "Provider {provider_id} failure count: {new_count}",
                 provider_id=provider_id,
@@ -324,7 +352,7 @@ class RedisManager:
             self.logger.error(
                 "Failed to increment failure count for provider {provider_id}: {error}",
                 provider_id=provider_id,
-                error=str(e),
+                error=repr(e),  # Use repr(e) for more detailed error logging
                 event_type="CIRCUIT_BREAKER",
                 timestamp=datetime.now()
             )
