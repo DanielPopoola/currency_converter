@@ -1,7 +1,17 @@
 import sys
 from pathlib import Path
+from enum import Enum
 
 from loguru import logger
+
+
+class LogLevel(Enum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
 
 logger.remove()
 

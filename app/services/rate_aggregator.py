@@ -257,7 +257,7 @@ class RateAggregatorService:
                         target_currency=target,
                         primary_rate=str(primary_rate),
                         secondary_rates=[str(r) for r in secondary_rates],
-                        max_deviation=f"{max_deviation:.4f}",
+                        max_deviation=max_deviation,
                         event_type="RATE_AGGREGATION",
                         timestamp=datetime.now()
                     )
@@ -270,7 +270,7 @@ class RateAggregatorService:
                     primary_rate=str(primary_rate),
                     secondary_providers=secondary_names,
                     secondary_rates=[str(r) for r in secondary_rates],
-                    max_deviation=f"{max_deviation:.6f}",
+                    max_deviation=max_deviation,
                     event_type="RATE_AGGREGATION",
                     timestamp=datetime.now()
                 )

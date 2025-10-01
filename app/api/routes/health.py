@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_service_factory
 from app.api.models.responses import HealthResponse
-from app.monitoring.logger import LogLevel, logger
+from app.monitoring.logger import logger, LogLevel
 from app.services.service_factory import ServiceFactory
 from app.utils.time import get_adjusted_timestamp
 
@@ -36,7 +36,11 @@ async def health_check(
         )
         health_data = {
             "timestamp": get_adjusted_timestamp(),
-            "services": {}
+            "services": {
+                "database": {"status": "unknown"},
+                "cache": {"status": "unknown"},
+                "rate_aggregator": {"status": "unknown"}
+            }
         }
 
         # Check database health
@@ -75,7 +79,11 @@ async def health_check(
         try:
             if service_factory.rate_aggregator:
                 aggregator_health = await service_factory.get_health_status()
-                health_data["services"]["rate_aggregator"] = aggregator_health
+                status_value = aggregator_health.get("status") or aggregator_health.get("service", "unknown")
+                health_data["services"]["rate_aggregator"] = {
+                    "status": status_value,
+                    **aggregator_health
+                }
             else:
                 health_data["services"]["rate_aggregator"] = {
                     "status": "not_initialized"
@@ -233,7 +241,7 @@ def _determine_overall_health(services: dict[str, Any]) -> str:
     for service_name, service_data in services.items():
         service_status = service_data.get("status", "unknown")
         
-        if service_name in critical_services and service_status in ["unhealthy", "error", "not_initialized"]:
+        if service_name in critical_services and service_status != "healthy":
                 critical_healthy = False
         
         if service_status in ["degraded", "unhealthy", "error"]:
