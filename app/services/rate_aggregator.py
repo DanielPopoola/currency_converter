@@ -3,14 +3,14 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 from app.cache.redis_manager import RedisManager
 from app.config.database import DatabaseManager
 from app.database.models import APICallLog, ExchangeRate
 from app.database.models import APIProvider as APIProviderModel
 from app.monitoring.logger import logger
-from app.providers.base import APICallResult, APIProvider
+from app.providers.base import APICallResult, APIProvider, ExchangeRateResponse
 from app.services.circuit_breaker import CircuitBreaker, CircuitBreakerError
 from app.services.currency_manager import CurrencyManager
 
@@ -389,6 +389,238 @@ class RateAggregatorService:
             
             # Absolute worst case - no data available
             raise Exception(f"No exchange rate data available for {base}->{target}")
+
+    async def get_all_rates_for_base(self, base: str) -> dict[str, AggregatedRateResult]:
+        """
+        Fetch ALL rates for a given base currency in one shot.
+        Returns a dictionary mapping target currencies to their aggregated results.
+        Args:
+            base: Base currency (e.g., "USD")
+        
+        Returns:
+            Dict mapping target currency to AggregatedRateResult
+            Example: {"EUR": AggregatedRateResult(...), "GBP": AggregatedRateResult(...)}
+        """
+        start_time = time.time()
+        is_valid, error_msg = await self.currency_manager.validate_currencies(base, base)
+        if not is_valid:
+            raise ValueError(f"Invalid base currency: {error_msg}")
+        
+        primary_all_rates = await self._try_provider_all_rates(self.primary_provider, base)
+        secondary_all_rates = await self._try_secondary_providers_all_rates(base)
+
+        all_targets = set()
+        
+        if primary_all_rates:
+            all_targets.update(primary_all_rates.keys())
+
+        for secondary_result in secondary_all_rates:
+            all_targets.update(secondary_result.keys())
+
+        aggregated_results = {}
+
+        for target in all_targets:
+            # Aggregate this specific pair
+            primary_rate_data = primary_all_rates.get(target) if primary_all_rates else None
+            secondary_rate_data = [sr.get(target) for sr in secondary_all_rates if target in sr]
+            
+            aggregated_result = await self._aggregate_single_pair(
+                base, target, primary_rate_data, secondary_rate_data, start_time
+            )
+            
+            # Update cache
+            await self._update_cache(aggregated_result)
+            
+            aggregated_results[target] = aggregated_result
+
+        response_time_ms = int(time.time() - start_time) * 1000
+
+        self.logger.info(
+            f"Fetched all rates for base {base}: {len(aggregated_results)} pairs in {response_time_ms}ms",
+            event_type="RATE_AGGREGATION",
+            timestamp=datetime.now(),
+            base_currency=base,
+            pairs_count=len(aggregated_results),
+            duration_ms=response_time_ms
+        )
+
+        return aggregated_results
+    
+    async def _try_provider_all_rates(self, provider_name: str, base: str) -> dict[str, ExchangeRateResponse] | None:
+        """
+        Fetch all rates from a single provider.
+        Returns dict mapping target currency to ExchangeRateResponse.
+        """
+        if provider_name not in self.providers:
+            return None
+        
+        provider = self.providers[provider_name]
+        circuit_breaker = self.circuit_breakers[provider_name]
+
+        start_time = time.time()
+        try:
+            result = await circuit_breaker.call(lambda: provider.get_all_rates(base))
+            duration_ms = (time.time() - start_time) * 1000
+            if result.was_successful and result.data:
+                # Convert list of ExchangeRateResponses to dict
+                rates_dict = {
+                    rate_response.target_currency: rate_response
+                    for rate_response in result.data if isinstance(rate_response, ExchangeRateResponse)
+                }
+
+                self.logger.info(
+                    f"Fetched all rates for {base}",
+                    provider_name=provider_name,
+                    endpoint="get_all_rates",
+                    success=True,
+                    response_time_ms=duration_ms,
+                    pairs_count=len(rates_dict)
+                )
+                return rates_dict
+            return None
+        except CircuitBreakerError:
+            duration_ms = (time.time() - start_time) * 1000
+            self.logger.warning(
+                f"Circuit breaker OPEN for {provider_name}, blocking get_all_rates",
+                event_type="CIRCUIT_BREAKER",
+                provider_name=provider_name,
+                operation="get_all_rates_blocked",
+                timestamp=datetime.now(),
+                duration_ms=duration_ms,
+            )
+            return None
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            self.logger.error(
+                "API call failed unexpectedly: get_all_rates",
+                provider_name=provider_name,
+                endpoint="get_supported_currencies",
+                success=False,
+                response_time_ms=duration_ms,
+                error_message=str(e),
+                event_type="API_CALL",
+                timestamp=datetime.now()
+            )
+            return None
+
+    async def _try_secondary_providers_all_rates(self, base: str) -> list[dict[str, ExchangeRateResponse]]:
+        """Try all secondary providers for batch rate fetching."""
+        secondary_providers = [name for name in self.providers if name != self.primary_provider]
+        
+        tasks = [
+            self._try_provider_all_rates(provider_name, base)
+            for provider_name in secondary_providers
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Filter valid results
+        valid_results = []
+        for result in results:
+            if isinstance(result, dict) and result:
+                valid_results.append(result)
+        
+        return valid_results
+
+    async def _aggregate_single_pair(
+        self,
+        base: str,
+        target: str,
+        primary_rate_data: ExchangeRateResponse | None,
+        secondary_rate_data: list[ExchangeRateResponse],
+        start_time: float
+    ) -> AggregatedRateResult:
+        """
+        Aggregate rates for a single pair (extracted from _aggregate_results for reuse)
+        """
+        response_time_ms = int((time.time() - start_time) * 1000)
+        
+        # Use primary if available
+        if primary_rate_data and primary_rate_data.is_successful:
+            primary_rate = primary_rate_data.rate
+            sources_used = [self.primary_provider]
+            confidence_level = "high"
+            
+            # Compare with secondaries if available
+            if secondary_rate_data:
+                secondary_rates = [r.rate for r in secondary_rate_data if r.is_successful]
+                
+                if secondary_rates:
+                    all_rates = [primary_rate] + secondary_rates
+                    avg_rate = Decimal(sum(all_rates) / len(all_rates))
+                    max_deviation = max([abs(rate - avg_rate) for rate in all_rates])
+                    
+                    if max_deviation >= 1.0:
+                        # High deviation, use primary only
+                        avg_rate = primary_rate
+                    else:
+                        # Low deviation, use average
+                        sources_used.extend([r.provider_name for r in secondary_rate_data if r.is_successful])
+                    
+                    return AggregatedRateResult(
+                        base_currency=base,
+                        target_currency=target,
+                        rate=avg_rate,
+                        confidence_level=confidence_level,
+                        sources_used=sources_used,
+                        is_primary_used=True,
+                        cached=False,
+                        timestamp=datetime.now(tz=UTC),
+                        response_time_ms=response_time_ms
+                    )
+            
+            return AggregatedRateResult(
+                base_currency=base,
+                target_currency=target,
+                rate=primary_rate,
+                confidence_level=confidence_level,
+                sources_used=sources_used,
+                is_primary_used=True,
+                cached=False,
+                timestamp=primary_rate_data.timestamp,
+                response_time_ms=response_time_ms
+            )
+        
+        # Fallback to secondaries
+        elif secondary_rate_data:
+            valid_secondaries = [r for r in secondary_rate_data if r.is_successful]
+            
+            if valid_secondaries:
+                rates = [r.rate for r in valid_secondaries]
+                sources = [r.provider_name for r in valid_secondaries]
+                
+                final_rate = Decimal(sum(rates) / len(rates)) if len(rates) > 1 else rates[0]
+                
+                return AggregatedRateResult(
+                    base_currency=base,
+                    target_currency=target,
+                    rate=final_rate,
+                    confidence_level="medium",
+                    sources_used=sources,
+                    is_primary_used=False,
+                    cached=False,
+                    timestamp=datetime.now(tz=UTC),
+                    response_time_ms=response_time_ms,
+                    warnings=[f"Primary provider {self.primary_provider} unavailable"]
+                )
+        
+        # Last resort: stale cache
+        stale_cache = await self._check_stale_cache(base, target)
+        if stale_cache:
+            return AggregatedRateResult(
+                base_currency=base,
+                target_currency=target,
+                rate=stale_cache["rate"],
+                confidence_level="low",
+                sources_used=stale_cache.get("sources_used", ["cache"]),
+                is_primary_used=False,
+                cached=True,
+                timestamp=datetime.fromisoformat(stale_cache["timestamp"]),
+                response_time_ms=response_time_ms,
+                warnings=["All API providers unavailable", f"Using stale cache (age: {stale_cache.get('age_minutes', 'unknown')} minutes)"]
+            )
+        
+        raise Exception(f"No exchange rate data available for {base}->{target}")
 
     async def _check_cache(self, base: str, target: str) -> dict[str, Any] | None:
         """Check Redis cache for fresh data (5-minute TTL)"""
