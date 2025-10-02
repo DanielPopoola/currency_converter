@@ -487,7 +487,7 @@ class RedisManager:
             )
         return 0
     
-    async def suscribe_to_rates(self) -> AsyncGenerator[dict[str, Any], None]:
+    async def subscribe_to_rates(self) -> AsyncGenerator[dict[str, Any], None]:
         """
         Subscribe to the rates:broadcast channel and yield incoming messages.
         

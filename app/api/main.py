@@ -7,7 +7,7 @@ from fastapi.exceptions import ValidationException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import convert, health, rates
+from app.api.routes import convert, health, rates, websockets
 from app.config.database import DatabaseManager
 from app.monitoring.logger import logger
 from app.services.service_factory import service_factory
@@ -77,7 +77,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -126,6 +126,7 @@ async def validation_exception_handler(request: Request, exc: ValidationExceptio
 app.include_router(convert.router)
 app.include_router(rates.router)
 app.include_router(health.router)
+app.include_router(websockets.router)
 
 @app.get(
     "/",
