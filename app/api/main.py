@@ -154,38 +154,3 @@ async def root():
         ],
         "timestamp": datetime.now().isoformat()
     }
-
-"""
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start_time = datetime.now()
-
-    # Process request
-    response = await call_next(request)
-        
-    # Calculate response time
-    response_time = (datetime.now() - start_time).total_seconds() * 1000
-    
-    # Log response
-    status_emoji = "✅" if response.status_code < 400 else "❌"
-    logger.info(f"⬅️  {status_emoji} {response.status_code} {request.method} {request.url.path} ({response_time:.2f}ms)")
-    
-    return response
-"""
-
-if __name__ == "__main__":
-    import uvicorn
-    
-    # Get configuration from environment
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8000))
-    
-    logger.info(f"Starting server on {host}:{port}")
-    
-    uvicorn.run(
-        "app.api.main:app",
-        host=host,
-        port=port,
-        reload=os.getenv("ENVIRONMENT", "production") == "development",
-        log_level="info"
-    )

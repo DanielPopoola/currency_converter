@@ -6,6 +6,7 @@ from datetime import datetime
 from app.cache.redis_manager import RedisManager
 from app.monitoring.logger import LogLevel, logger
 from app.services import RateAggregatorService, ServiceFactory
+from app.config.worker import WorkerConfig
 
 
 class RateIngestorWorker:
@@ -180,23 +181,36 @@ class RateIngestorWorker:
 
 async def main():
     """Entry point for running the worker."""
+    # Validate configuration first
+    is_valid, error_msg = WorkerConfig.validate_config()
+    if not is_valid:
+        logger.error(f"Invalid worker configuration: {error_msg}")
+        sys.exit(1)
+    
+    logger.info("="*60)
+    logger.info("RATE INGESTOR WORKER STARTING")
+    logger.info("="*60)
+    logger.info(f"Base currencies: {WorkerConfig.BASE_CURRENCIES}")
+    logger.info(f"Target currencies: {WorkerConfig.TARGET_CURRENCIES}")
+    logger.info(f"Total pairs to track: {WorkerConfig.get_total_pairs()}")
+    logger.info(f"Update interval: {WorkerConfig.UPDATE_INTERVAL}s")
+    logger.info(f"API calls per cycle: {len(WorkerConfig.BASE_CURRENCIES)}")
+    logger.info("="*60)
+
     service_factory = ServiceFactory()
     
     logger.info("Initializing services...")
     await service_factory.create_rate_aggregator()
-    
-    # Define which currencies to track
-    base_currencies = ["USD", "EUR"]
-    target_currencies = {"GBP", "NGN", "JPY", "CAD", "AUD", "CHF"}
-    
+
+    # Create worker with config
     worker = RateIngestorWorker(
         rate_aggregator=service_factory.rate_aggregator,
         redis_manager=service_factory.redis_manager,
-        base_currencies=base_currencies,
-        target_currencies=target_currencies,
-        update_interval=120
+        base_currencies=WorkerConfig.BASE_CURRENCIES,
+        target_currencies=WorkerConfig.TARGET_CURRENCIES,
+        update_interval=WorkerConfig.UPDATE_INTERVAL
     )
-
+    
     # Setup graceful shutdown
     def signal_handler(sig, frame):
         logger.info(f"Received signal {sig}, shutting down gracefully...")
