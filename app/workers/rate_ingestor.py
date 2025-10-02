@@ -4,9 +4,9 @@ import sys
 from datetime import datetime
 
 from app.cache.redis_manager import RedisManager
+from app.config.worker import WorkerConfig
 from app.monitoring.logger import LogLevel, logger
 from app.services import RateAggregatorService, ServiceFactory
-from app.config.worker import WorkerConfig
 
 
 class RateIngestorWorker:

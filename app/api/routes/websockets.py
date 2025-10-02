@@ -1,13 +1,11 @@
 import json
 from datetime import datetime
 
-
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 
 from app.api.dependencies import get_service_factory
+from app.monitoring.logger import LogLevel, logger
 from app.services import ServiceFactory
-from app.monitoring.logger import logger, LogLevel
-
 
 router = APIRouter(prefix="/api/v1", tags=["websockets"])
 
@@ -47,7 +45,6 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         """Remove a connection when client disconnects"""
         if websocket in self.active_connections:
-            subscriptions = self.active_connections[websocket]
             del self.active_connections[websocket]
 
             self.logger.info(f"WebSocket disconnected. Remaining connections: {len(self.active_connections)}")
@@ -168,7 +165,7 @@ async def websocket_rates_endpoint(
                 break
             except Exception as e:
                 logger.error(
-                    f"Failed to send rate update",
+                    "Failed to send rate update",
                     timestamp=datetime.now(),
                     error_msg=str(e)
                 )
