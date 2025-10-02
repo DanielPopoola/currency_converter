@@ -52,7 +52,7 @@ class WorkerConfig:
             return False, "BASE_CURRENCIES cannot be empty"
         if not cls.TARGET_CURRENCIES:
             return False, "TARGET_CURRENCIES cannot be empty"
-        if not cls.UPDATE_INTERVAL < 1:
+        if cls.UPDATE_INTERVAL < 1:
             return False, "UPDATE_INTERVAL must be at least 1 second"
         
         # Check for invalid currency codes (should be min 3 letters)
@@ -62,3 +62,7 @@ class WorkerConfig:
                 return False, f"Invalid currency code: {currency} (must be 3 letters)"
             
         return True, "Configuration valid"
+    
+
+wc = WorkerConfig()
+print(wc.UPDATE_INTERVAL)
