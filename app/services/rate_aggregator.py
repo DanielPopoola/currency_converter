@@ -222,7 +222,7 @@ class RateAggregatorService:
 
         # Scenario 3: All failed, try stale cache
         else:
-            self.logger.error(f"All providers failed for {base}->{target}, checking stale cache")
+            self.logger.warning(f"All providers failed for {base}->{target}, checking stale cache")
             stale_cache = await self._check_stale_cache(base, target)
             if stale_cache:
                 warnings = [

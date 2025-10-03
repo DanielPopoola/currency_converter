@@ -4,32 +4,23 @@ Configuration for the Rate Ingestor Worker.
 This file defines which currency pairs the worker continuously monitors.
 Modify these lists based on your business requirements.
 """
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class WorkerConfig:
     """Configuration for rate ingestion worker"""
-    BASE_CURRENCIES: list[str] = [
-        "USD",
-        "EUR",
-        "GBP",
-        "NGN",
-    ]
+    BASE_CURRENCIES: list[str] = [c.strip() for c in os.getenv("WORKER_BASE_CURRENCIES", "USD,EUR").split(",")]
 
     TARGET_CURRENCIES: set[str] = {
-        "USD",
-        "EUR", 
-        "GBP",
-        "NGN",
-        "JPY",
-        "CAD",
-        "AUD",
-        "CHF",
-        "CNY",
-        "INR",
+        c.strip() for c in os.getenv("WORKER_TARGET_CURRENCIES", "NGN").split(",")
     }
 
-    UPDATE_INTERVAL: int = 120
+    UPDATE_INTERVAL = os.getenv("WORKER_UPDATE_INTERVAL", 120)
 
-    RATE_TTL: int = 300
+    RATE_TTL = os.getenv("CACHE_TTL", 30)
 
     @classmethod
     def get_total_pairs(cls) -> int:
@@ -65,4 +56,4 @@ class WorkerConfig:
     
 
 wc = WorkerConfig()
-print(wc.UPDATE_INTERVAL)
+print(wc.TARGET_CURRENCIES)
