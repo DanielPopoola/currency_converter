@@ -341,9 +341,9 @@ class RedisManager:
                     return 0
 
             self.logger.debug(
-                "Provider {provider_id} failure count: {new_count}",
+                "Provider failure count incremented",
                 provider_id=provider_id,
-                failure_count=new_count,
+                new_count=new_count,
                 event_type="CIRCUIT_BREAKER",
                 timestamp=datetime.now()
             )
