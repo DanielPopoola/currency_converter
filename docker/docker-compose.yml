@@ -12,19 +12,8 @@ services:
       - db
       - redis
 
-  worker:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    command: /app/scripts/run_worker.sh
-    env_file:
-      - .env
-    depends_on:
-      - db
-      - redis
-
   db:
-    image: postgres:13
+    image: postgres:15
     container_name: currency-converter-db-compose
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
