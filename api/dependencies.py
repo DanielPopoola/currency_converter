@@ -45,7 +45,7 @@ def init_dependencies() -> None:
 	deps.providers = {
 		'fixerio': FixerIOProvider(settings.FIXERIO_API_KEY),
 		'openexchange': OpenExchangeProvider(settings.OPENEXCHANGE_APP_ID),
-		'currencyapi': CurrencyAPIProvider(settings.CURRENCYAPI_API_KEY),
+		'currencyapi': CurrencyAPIProvider(settings.CURRENCYAPI_KEY),
 	}
 	logger.info('Dependencies initialized')
 

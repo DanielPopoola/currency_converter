@@ -3,8 +3,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, status
 
 from api.dependencies import (
-	ConversionService,
-	RateService,
 	get_conversion_service,
 	get_rate_service,
 )
@@ -12,6 +10,10 @@ from api.schemas import (
 	ConversionRequest,
 	ConversionResponse,
 	ExchangeRateResponse,
+)
+from application.services import (
+	ConversionService,
+	RateService,
 )
 
 router = APIRouter(prefix='/api', tags=['currency'])

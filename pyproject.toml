@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.16.5",
+    "asyncpg>=0.30.0",
     "buildpost>=0.1.1",
     "currencyapicom>=0.1.1",
     "fastapi[all]>=0.116.2",

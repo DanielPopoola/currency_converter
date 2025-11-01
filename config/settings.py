@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
 	FIXERIO_API_KEY: str = ''
 	OPENEXCHANGE_APP_ID: str = ''
-	CURRENCYAPI_API_KEY: str = ''
+	CURRENCYAPI_KEY: str = ''
 
 	# Application
 	APP_NAME: str = 'Currency Converter API'
