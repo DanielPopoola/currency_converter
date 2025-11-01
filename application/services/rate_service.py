@@ -7,7 +7,6 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from domain.exceptions.currency import ProviderError
 from domain.models.currency import AggregatedRate, ExchangeRate
-from infrastructure.persistence.repositories.currency import CurrencyRepository
 from infrastructure.providers.base import ExchangeRateProvider
 
 logger = logging.getLogger(__name__)
@@ -16,11 +15,9 @@ logger = logging.getLogger(__name__)
 class RateService:
     def __init__(
         self,
-        repository: CurrencyRepository,
         primary_provider: ExchangeRateProvider,
         secondary_providers: list[ExchangeRateProvider],
     ):
-        self.repository = repository
         self.primary_provider = primary_provider
         self.secondary_providers = secondary_providers
 
