@@ -1,7 +1,13 @@
 from decimal import Decimal
+<<<<<<< HEAD
 
 import httpx
 
+=======
+import httpx
+
+
+>>>>>>> ea73100a6658e760fe014817d4e744dc5b7062b8
 from domain.exceptions.currency import ProviderError
 
 
