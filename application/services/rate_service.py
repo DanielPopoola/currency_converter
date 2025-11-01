@@ -35,20 +35,6 @@ class RateService:
             timestamp=aggregated.timestamp,
             source="averaged" if len(aggregated.sources) > 1 else aggregated.sources[0],
         )
-
-        await self.repository.save_rate(rate)
-
-        if len(aggregated.individual_rates) > 1:
-            for source, individual_rate in aggregated.individual_rates.items():
-                individual = ExchangeRate(
-                    from_currency=from_currency,
-                    to_currency=to_currency,
-                    rate=individual_rate,
-                    timestamp=aggregated.timestamp,
-                    source=source,
-                )
-                await self.repository.save_rate(individual)
-
         return rate
 
     @retry(
