@@ -1,19 +1,10 @@
 from decimal import Decimal
-<<<<<<< HEAD
 
 import httpx
 
 from domain.exceptions.currency import ProviderError
 
 
-=======
-import httpx
-
-
-from domain.exceptions.currency import ProviderError
-
-
->>>>>>> ea73100a6658e760fe014817d4e744dc5b7062b8
 class FixerIOProvider:
     BASE_URL = "http://data.fixer.io/api"
 
