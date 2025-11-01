@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
+from application.services.currency_service import CurrencyService
 from domain.exceptions.currency import ProviderError
 from domain.models.currency import AggregatedRate, ExchangeRate
 from infrastructure.providers.base import ExchangeRateProvider
@@ -15,14 +16,18 @@ logger = logging.getLogger(__name__)
 class RateService:
     def __init__(
         self,
+        currency_service: CurrencyService,
         primary_provider: ExchangeRateProvider,
         secondary_providers: list[ExchangeRateProvider],
     ):
+        self.currency_service = currency_service
         self.primary_provider = primary_provider
         self.secondary_providers = secondary_providers
 
     async def get_rate(self, from_currency: str, to_currency: str) -> ExchangeRate:
-
+        await self.currency_service.validate_currency(from_currency)
+        await self.currency_service.validate_currency(to_currency)
+        
         aggregated = await self._aggregate_rates(from_currency, to_currency)
 
         rate = ExchangeRate(
