@@ -1,12 +1,14 @@
 class CurrencyException(Exception):
-    pass
+	pass
 
 
 class InvalidCurrencyError(CurrencyException):
-    pass
+	pass
+
 
 class ProviderError(CurrencyException):
-    pass
+	pass
+
 
 class CacheError(CurrencyException):
-    pass
+	pass
