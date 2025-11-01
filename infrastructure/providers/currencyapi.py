@@ -1,8 +1,15 @@
+<<<<<<< HEAD
 import contextlib
 from decimal import Decimal
 
 import httpx
 
+=======
+from decimal import Decimal
+import httpx
+
+
+>>>>>>> ea73100a6658e760fe014817d4e744dc5b7062b8
 from domain.exceptions.currency import ProviderError
 
 
@@ -35,8 +42,15 @@ class CurrencyAPIProvider:
 
         except httpx.HTTPStatusError as e:
             msg = None
+<<<<<<< HEAD
             with contextlib.suppress(Exception):
                 msg = e.response.json().get("message")
+=======
+            try:
+                msg = e.response.json().get("message")
+            except Exception:
+                pass
+>>>>>>> ea73100a6658e760fe014817d4e744dc5b7062b8
             raise ProviderError(
                 f"CurrencyAPI HTTP error {e.response.status_code}: {msg or e.response.text[:200]}"
             ) from e
