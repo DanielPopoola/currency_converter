@@ -122,10 +122,12 @@ async def get_currency_service(
 
 async def get_rate_service(
 	currency_service: Annotated[CurrencyService, Depends(get_currency_service)],
+	repository: Annotated[CurrencyRepository, Depends(get_currency_repository)],
 	providers: Annotated[dict[str, ExchangeRateProvider], Depends(get_providers)],
 ) -> RateService:
 	return RateService(
 		currency_service=currency_service,
+		repository=repository,
 		primary_provider=providers['fixerio'],
 		secondary_providers=[providers['openexchange'], providers['currencyapi']],
 	)

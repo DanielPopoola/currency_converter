@@ -8,6 +8,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from application.services.currency_service import CurrencyService
 from domain.exceptions.currency import ProviderError
 from domain.models.currency import AggregatedRate, ExchangeRate
+from infrastructure.persistence.repositories.currency import CurrencyRepository
 from infrastructure.providers.base import ExchangeRateProvider
 
 logger = logging.getLogger(__name__)
@@ -17,16 +18,25 @@ class RateService:
 	def __init__(
 		self,
 		currency_service: CurrencyService,
+		repository: CurrencyRepository,
 		primary_provider: ExchangeRateProvider,
 		secondary_providers: list[ExchangeRateProvider],
 	):
 		self.currency_service = currency_service
+		self.repository = repository
 		self.primary_provider = primary_provider
 		self.secondary_providers = secondary_providers
 
 	async def get_rate(self, from_currency: str, to_currency: str) -> ExchangeRate:
 		await self.currency_service.validate_currency(from_currency)
 		await self.currency_service.validate_currency(to_currency)
+
+		cached_rate = await self.repository.cache.get_rate(from_currency, to_currency)
+		if cached_rate:
+			logger.info(f'Cache HIT: {from_currency}/{to_currency}')
+			return cached_rate
+
+		logger.info(f'Cache MISS: {from_currency}/{to_currency}, fetching from providers')
 
 		aggregated = await self._aggregate_rates(from_currency, to_currency)
 
@@ -37,6 +47,9 @@ class RateService:
 			timestamp=aggregated.timestamp,
 			source='averaged' if len(aggregated.sources) > 1 else aggregated.sources[0],
 		)
+
+		await self.repository.save_rate(rate)
+
 		return rate
 
 	@retry(
