@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from redis import asyncio as redis
 
+from domain.exceptions.currency import CacheError
 from domain.models.currency import ExchangeRate
 
 
@@ -23,14 +24,17 @@ class RedisCacheService:
 		if not data:
 			return None
 
-		rate_dict = json.loads(data)
-		return ExchangeRate(
-			from_currency=rate_dict['from_currency'],
-			to_currency=rate_dict['to_currency'],
-			rate=Decimal(rate_dict['rate']),
-			timestamp=datetime.fromisoformat(rate_dict['timestamp']),
-			source=rate_dict['source'],
-		)
+		try:
+			rate_dict = json.loads(data)
+			return ExchangeRate(
+				from_currency=rate_dict['from_currency'],
+				to_currency=rate_dict['to_currency'],
+				rate=Decimal(rate_dict['rate']),
+				timestamp=datetime.fromisoformat(rate_dict['timestamp']),
+				source=rate_dict['source'],
+			)
+		except json.decoder.JSONDecodeError as e:
+			raise CacheError('Invalid json data decoded') from e
 
 	async def set_rate(self, rate: ExchangeRate) -> None:
 		key = self._make_rate_key(rate.from_currency, rate.to_currency)
@@ -49,7 +53,10 @@ class RedisCacheService:
 		data = await self.redis.get('currencies:supported')
 		if not data:
 			return None
-		return json.loads(data)
+		try:
+			return json.loads(data)
+		except json.decoder.JSONDecodeError as e:
+			raise CacheError('Invalid json data decoded') from e
 
 	async def set_supported_currencies(self, currencies: list[str]) -> None:
 		await self.redis.setex('currencies:supported', self.currency_ttl, json.dumps(currencies))
