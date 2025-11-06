@@ -42,3 +42,10 @@ class ExchangeRateResponse(BaseModel):
 				'timestamp': '2025-09-27T10:30:00Z',
 			}
 		}
+
+
+class SupportedCurrenciesResponse(BaseModel):
+	currencies: list[str] = Field(description='List of currency codes')
+
+	class ConfigDict:
+		json_schema_extra = {'examples': [{'currencies': ['USD', 'EUR', 'GBP', 'JPY']}]}
