@@ -1,10 +1,24 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConversionResponse(BaseModel):
+	model_config = ConfigDict(
+		json_schema_extra={
+			'example': {
+				'from_currency': 'USD',
+				'to_currency': 'EUR',
+				'original_amount': '100.00',
+				'converted_amount': '92.55',
+				'exchange_rate': '0.9255',
+				'timestamp': '2025-11-01T14:30:00Z',
+				'source': 'averaged',
+			}
+		}
+	)
+
 	from_currency: str = Field(..., description='Source currency code')
 	to_currency: str = Field(..., description='Target currency code')
 	original_amount: Decimal = Field(..., description='Original amount requested')
@@ -13,39 +27,34 @@ class ConversionResponse(BaseModel):
 	timestamp: datetime = Field(..., description='When the rate was fetched')
 	source: str = Field(..., description='Providers of rates')
 
-	class ConfigDict:
-		json_schema_extra = {
-			'example': {
-				'from_currency': 'USD',
-				'to_currency': 'EUR',
-				'amount': 100.00,
-				'converted_amount': 85.50,
-				'exchange_rate': 0.8550,
-				'timestamp': '2025-09-27T10:30:00Z',
-			}
-		}
-
 
 class ExchangeRateResponse(BaseModel):
+	model_config = ConfigDict(
+		json_schema_extra={
+			'example': {
+				'from_currency': 'USD',
+				'to_currency': 'JPY',
+				'rate': '149.85',
+				'timestamp': '2025-11-01T14:30:00Z',
+				'source': 'averaged',
+			}
+		}
+	)
+
 	from_currency: str = Field(..., description='Source currency code')
 	to_currency: str = Field(..., description='Target currency code')
-	rate: Decimal = Field(..., description='Exchange rate used for conversion')
+	rate: Decimal = Field(..., description='Exchange rate between the two currencies')
 	timestamp: datetime = Field(..., description='When the rate was fetched')
 	source: str = Field(..., description='Providers of rates')
 
-	class ConfigDict:
-		json_schema_extra = {
-			'example': {
-				'from_currency': 'USD',
-				'to_currency': 'EUR',
-				'exchange_rate': 0.8550,
-				'timestamp': '2025-09-27T10:30:00Z',
-			}
-		}
-
 
 class SupportedCurrenciesResponse(BaseModel):
-	currencies: list[str] = Field(description='List of currency codes')
+	model_config = ConfigDict(
+		json_schema_extra={
+			'example': {
+				'currencies': ['USD', 'EUR', 'GBP', 'JPY', 'NGN'],
+			}
+		}
+	)
 
-	class ConfigDict:
-		json_schema_extra = {'examples': [{'currencies': ['USD', 'EUR', 'GBP', 'JPY']}]}
+	currencies: list[str] = Field(..., description='List of supported currency codes')
