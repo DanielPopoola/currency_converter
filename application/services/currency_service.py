@@ -15,7 +15,18 @@ class CurrencyService:
 		self.providers = providers
 
 	async def initialize_supported_currencies(self) -> None:
-		logger.info('Initializing supported currencies...')
+		# If currencies are already persisted, skip fetching from providers entirely.
+		# This means the expensive provider calls only happen once — on first startup
+		# when the DB is empty. Every subsequent startup just uses what's already saved.
+		existing = await self.repository.get_supported_currencies()
+		if existing:
+			logger.info(
+				f'Supported currencies already initialized '
+				f'({len(existing)} currencies), skipping provider fetch.'
+			)
+			return
+
+		logger.info('No currencies found in DB, fetching from providers...')
 
 		provider_tasks = [provider.fetch_supported_currencies() for provider in self.providers]
 		results = await asyncio.gather(*provider_tasks, return_exceptions=True)
