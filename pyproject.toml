@@ -12,6 +12,7 @@ dependencies = [
     "loguru>=0.7.3",
     "psycopg2-binary>=2.9.10",
     "redis>=6.4.0",
+    "ruff>=0.13.0",
     "sqlalchemy>=2.0.43",
     "tenacity>=9.1.2",
 ]
@@ -20,7 +21,7 @@ dependencies = [
 dev = [
     "pytest>=8.4.2",
     "pytest-asyncio>=1.2.0",
-    "ruff>=0.13.0",
+
 ]
 
 [tool.setuptools.packages.find]
