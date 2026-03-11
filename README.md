@@ -117,7 +117,7 @@ This service provides real-time currency conversion with automatic fallback betw
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/currency-converter.git
+   git clone https://github.com/DanielPopoola/currency-converter.git
    cd currency-converter
    ```
 
