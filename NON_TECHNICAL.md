@@ -47,15 +47,15 @@ Supported currency lists are cached for **24 hours**, since the set of globally 
 
 Every exchange rate the service fetches is saved in a database. This means you can see what the rate was at any point in the past — useful for auditing, reporting, or dispute resolution.
 
-### Currency Validation
+### One-Time Currency Setup
 
-The service only allows currency codes that are supported by **all three providers**. This prevents edge cases where a conversion works with one provider but fails with another.
+The first time the service starts up on a fresh installation, it contacts all three providers to build a list of supported currencies and saves it to the database. Every time the service restarts after that, it reads that saved list directly — no provider calls needed at boot. This means restarts are faster and don't depend on external services being reachable.
 
 ---
 
 ## How a Typical Request Works
 
-Here's what happens when someone asks to convert $100 USD to EUR, in plain terms:
+Here's what happens when someone asks to convert $100 USD to EUR:
 
 1. **The request arrives.** The service checks that "USD" and "EUR" are valid, supported currencies.
 
@@ -63,7 +63,7 @@ Here's what happens when someone asks to convert $100 USD to EUR, in plain terms
 
 3. **Memory hit → instant response.** If found, it multiplies $100 by the remembered rate and replies immediately. No calls to external services.
 
-4. **Memory miss → ask the providers.** If not found (or it's been more than 5 minutes), the service asks Fixer.io, OpenExchangeRates, and CurrencyAPI simultaneously.
+4. **Memory miss → ask the providers.** If not found, the service asks Fixer.io, OpenExchangeRates, and CurrencyAPI simultaneously.
 
 5. **Average the responses.** For example:
    - Fixer.io says: 0.9250
@@ -76,8 +76,6 @@ Here's what happens when someone asks to convert $100 USD to EUR, in plain terms
 ---
 
 ## API Endpoints
-
-The service exposes three simple endpoints:
 
 | Endpoint | What It Does |
 |----------|-------------|
@@ -92,6 +90,9 @@ Interactive documentation is available at `/docs` once the service is running.
 ## Example Responses
 
 **Converting 100 USD to EUR:**
+```
+GET /api/convert/USD/EUR/100
+```
 ```json
 {
   "from_currency": "USD",
@@ -113,8 +114,6 @@ The `source` field tells you the rate came from averaging multiple providers, no
 }
 ```
 
-Error responses always include a plain-English `detail` field explaining the problem.
-
 ---
 
 ## What Happens When Things Go Wrong
@@ -135,9 +134,10 @@ Error responses always include a plain-English `detail` field explaining the pro
 | Technology | What It Is | Why It's Used |
 |------------|-----------|---------------|
 | **FastAPI** | The web framework | Handles incoming HTTP requests quickly |
-| **PostgreSQL** | A relational database | Stores permanent rate history |
+| **PostgreSQL** | A relational database | Stores permanent rate history and supported currencies |
 | **Redis** | An in-memory store | Fast short-term caching of recent rates |
 | **SQLAlchemy** | A database toolkit | Handles all database queries in Python |
+| **Alembic** | A migration tool | Manages database schema changes safely |
 | **Pydantic** | A data validation library | Ensures all input and output data is the right shape and type |
 | **httpx** | An HTTP client | Makes requests to the three exchange rate providers |
 | **Docker** | Containerization | Packages the app and its dependencies for consistent deployment |
@@ -147,22 +147,18 @@ Error responses always include a plain-English `detail` field explaining the pro
 
 ## Deployment Overview
 
-The service is packaged as a Docker container and deployed via GitHub Actions. Every time code is merged into the main branch:
+The service is packaged as a Docker container and deployed via GitHub Actions. Every time code is merged into the main branch, automated tests run, a new Docker image is built and published to the container registry, tagged with both `latest` and the specific code version so you can always roll back if needed.
 
-1. Automated tests run to verify nothing is broken.
-2. A new Docker image is built and published to the container registry.
-3. The image is tagged with both `latest` and the specific code version (git commit hash), so you can always roll back to a previous version if needed.
-
-The service requires three external services to run: Postgres (for history), Redis (for caching), and API keys for the three exchange rate providers.
+On first deployment to a new environment, the service automatically sets up the database schema and seeds the supported currencies list. Subsequent deployments are non-destructive — existing data is preserved.
 
 ---
 
 ## Limitations & Known Constraints
 
-- **Fixer.io free tier** only supports EUR as a base currency. Paid plans unlock all base currencies. The other two providers support arbitrary base currencies on their free tiers.
+- **Fixer.io free tier** only supports EUR as a base currency. Paid plans unlock all base currencies.
 
-- **Rate freshness**: Rates are cached for 5 minutes. In periods of high market volatility, the actual rate at time of transaction may differ from what was quoted.
+- **Rate freshness**: Rates are cached for 5 minutes. In periods of high market volatility, the actual rate at time of transaction may differ slightly from what was quoted.
 
-- **Supported currencies**: Only currencies supported by all three providers simultaneously are available. If a provider drops support for a currency, it will be removed from the supported list at the next application startup.
+- **Supported currencies**: Only currencies supported by all three providers simultaneously are available. If you add a new provider, the currency list will only update on a fresh installation or manual database reset.
 
 - **No authentication**: The API is currently open. In a production deployment exposed to the internet, rate limiting and API key authentication should be added.

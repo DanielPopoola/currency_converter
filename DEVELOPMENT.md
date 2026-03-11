@@ -8,24 +8,24 @@
 1. [Prerequisites](#prerequisites)
 2. [Local Setup](#local-setup)
 3. [Project Structure](#project-structure)
-4. [Configuration](#configuration)
-5. [Running the Application](#running-the-application)
-6. [Testing](#testing)
-7. [Code Quality](#code-quality)
-8. [Adding a New Provider](#adding-a-new-provider)
-9. [Adding a New Endpoint](#adding-a-new-endpoint)
-10. [Database Migrations](#database-migrations)
-11. [CI/CD Pipeline](#cicd-pipeline)
-12. [Common Pitfalls](#common-pitfalls)
+4. [Running the Application](#running-the-application)
+5. [Testing](#testing)
+6. [Code Quality](#code-quality)
+7. [Adding a New Provider](#adding-a-new-provider)
+8. [Adding a New Endpoint](#adding-a-new-endpoint)
+9. [Database Migrations](#database-migrations)
+10. [CI/CD Pipeline](#cicd-pipeline)
+11. [Common Pitfalls](#common-pitfalls)
 
 ---
 
 ## Prerequisites
 
 - Python 3.12
-- Docker & Docker Compose (for local infrastructure)
+- Docker & Docker Compose
+- `uv` — fast Python package installer (`pip install uv`)
 - API keys for all three providers:
-  - [Fixer.io](https://fixer.io/) — free tier available
+  - [Fixer.io](https://fixer.io/) — free tier available (EUR base only)
   - [OpenExchangeRates](https://openexchangerates.org/) — free tier available
   - [CurrencyAPI](https://currencyapi.com/) — free tier available
 
@@ -38,8 +38,8 @@
 git clone https://github.com/yourorg/currency-converter.git
 cd currency-converter
 python -m venv .venv
-source .venv/bin/activate       # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+source .venv/bin/activate
+uv pip install -e .
 ```
 
 ### 2. Configure environment variables
@@ -47,19 +47,11 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env` and fill in your API keys:
-```env
-FIXERIO_API_KEY=your_key_here
-OPENEXCHANGE_APP_ID=your_id_here
-CURRENCYAPI_KEY=your_key_here
-
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/currency_converter
-REDIS_URL=redis://localhost:6379/0
-```
+Edit `.env` and fill in your API keys. The `DATABASE_URL` and `REDIS_URL` in `.env` use `localhost` — this is correct for running the API directly on your machine. Docker overrides these two values internally to point at the named services (`db`, `redis`).
 
 ### 3. Start infrastructure (Postgres + Redis)
 ```bash
-docker-compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml up db redis -d
 ```
 
 ### 4. Run database migrations
@@ -72,7 +64,7 @@ alembic upgrade head
 uvicorn api.main:app --reload
 ```
 
-API is now available at `http://localhost:8000`. Swagger UI at `http://localhost:8000/docs`.
+API available at `http://localhost:8000`. Swagger UI at `http://localhost:8000/docs`.
 
 ---
 
@@ -89,7 +81,7 @@ API is now available at `http://localhost:8000`. Swagger UI at `http://localhost
 │   └── main.py                  # App factory, lifespan, startup
 │
 ├── application/services/
-│   ├── currency_service.py      # Supported currencies + validation
+│   ├── currency_service.py      # Supported currencies + validation + seeding
 │   ├── rate_service.py          # Rate fetching + aggregation
 │   └── conversion_service.py   # Conversion orchestration
 │
@@ -109,51 +101,36 @@ API is now available at `http://localhost:8000`. Swagger UI at `http://localhost
 │       ├── models/currency.py   # SQLAlchemy ORM models
 │       └── repositories/currency.py
 │
-├── config/settings.py           # Pydantic Settings (env vars)
-├── tests/
+├── alembic/                     # Migration scripts
+│   ├── versions/
+│   │   └── 0001_initial_tables.py
+│   └── env.py
+│
+├── alembic.ini
+├── config/settings.py
+├── Dockerfile
 └── docker/
+    ├── docker-compose.yml
+    └── entrypoint.sh
 ```
-
----
-
-## Configuration
-
-All config lives in `config/settings.py` using `pydantic-settings`. Values are read from environment variables or a `.env` file.
-```python
-class Settings(BaseSettings):
-    DATABASE_URL: str
-    REDIS_URL: str
-    FIXERIO_API_KEY: str
-    OPENEXCHANGE_APP_ID: str
-    CURRENCYAPI_KEY: str
-    APP_NAME: str = "Currency Converter API"
-    DEBUG: bool = True
-
-    model_config = SettingsConfigDict(env_file='.env', case_sensitive=False, extra='ignore')
-```
-
-`get_settings()` is decorated with `@lru_cache` so the settings object is only created once per process.
-
-> Never hardcode secrets. Always use the `.env` file locally and proper secret injection in production.
 
 ---
 
 ## Running the Application
 
-### With Docker Compose (recommended for full stack)
+### Full stack with Docker (recommended)
 ```bash
-docker-compose -f docker/docker-compose.yml up --build
+docker compose -f docker/docker-compose.yml up --build
 ```
 
-This starts Postgres, Redis, runs migrations via `entrypoint.sh`, and starts the API.
+On first startup: migrations run, currencies are seeded from providers, API starts.
+On subsequent startups: migrations are a no-op, currencies are read from DB, API starts.
 
-### Locally (API only, with Docker infra)
+### Locally (API only, Docker for infra)
 ```bash
-# Start only infra
-docker-compose -f docker/docker-compose.yml up -d db redis
-
-# Run API locally
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+docker compose -f docker/docker-compose.yml up db redis -d
+alembic upgrade head
+uvicorn api.main:app --reload
 ```
 
 ---
@@ -176,13 +153,13 @@ open htmlcov/index.html
 tests/
 └── unit/
     └── infrastructure/
-        ├── cache/test_redis_cache.py       # RedisCacheService unit tests
-        └── providers/test_fixerio.py       # FixerIOProvider unit tests
+        ├── cache/test_redis_cache.py
+        └── providers/test_fixerio.py
 ```
 
 ### How provider tests work
 
-Providers accept an injected `httpx.AsyncClient`, so tests mock at the HTTP level without making real network calls:
+Providers accept an injected `httpx.AsyncClient`, so tests mock at the HTTP level:
 ```python
 mock_client = AsyncMock(spec=httpx.AsyncClient)
 mock_response = Mock()
@@ -197,7 +174,7 @@ assert rate == Decimal('0.85')
 
 ### How cache tests work
 
-`RedisCacheService` accepts an injected Redis client, so tests mock at the Redis level:
+`RedisCacheService` accepts an injected Redis client:
 ```python
 mock_redis = AsyncMock()
 mock_redis.get.return_value = json.dumps({...})
@@ -205,24 +182,15 @@ cache = RedisCacheService(redis_client=mock_redis)
 result = await cache.get_rate('USD', 'EUR')
 ```
 
-### pytest configuration
-
-`pyproject.toml` sets `asyncio_mode = "auto"` so all async test functions run without needing `@pytest.mark.asyncio` (though it's still used for clarity in existing tests).
-
 ---
 
 ## Code Quality
 
 ### Linting & formatting (ruff)
 ```bash
-ruff check .          # lint
-ruff check . --fix    # auto-fix
-ruff format .         # format
-```
-
-### Type checking (mypy)
-```bash
-mypy --config-file=pyproject.toml --package=api --package=application --package=domain --package=infrastructure
+ruff check .
+ruff check . --fix
+ruff format .
 ```
 
 ### Pre-commit hooks
@@ -231,10 +199,10 @@ Install once:
 ```bash
 pip install pre-commit
 pre-commit install
-pre-commit install --hook-type commit-msg   # for commitizen
+pre-commit install --hook-type commit-msg
 ```
 
-Hooks run automatically on `git commit` and enforce: trailing whitespace, ruff lint+format, mypy, bandit security scan, and conventional commit message format.
+Hooks enforce: trailing whitespace, ruff lint+format, mypy, bandit, conventional commit messages.
 
 ---
 
@@ -260,79 +228,79 @@ class YourProvider:
     async def fetch_rate(self, from_currency: str, to_currency: str) -> Decimal:
         # fetch and return Decimal rate
         # raise ProviderError on any failure
+        ...
 
     async def fetch_supported_currencies(self) -> list[dict]:
         # return [{"code": "USD", "name": "US Dollar"}, ...]
         # raise ProviderError on any failure
+        ...
 
     async def close(self) -> None:
         await self._client.aclose()
 ```
 
-2. Export from `infrastructure/providers/__init__.py`:
+2. Export from `infrastructure/providers/__init__.py`.
+
+3. Add the API key to `config/settings.py`:
 ```python
-from .yourprovider import YourProvider
+YOUR_API_KEY: str = ''
 ```
 
-3. Register in `api/dependencies.py`:
+4. Register in `api/dependencies.py`:
 ```python
 deps.providers = {
     'fixerio': FixerIOProvider(settings.FIXERIO_API_KEY),
     'openexchange': OpenExchangeProvider(settings.OPENEXCHANGE_APP_ID),
     'currencyapi': CurrencyAPIProvider(settings.CURRENCYAPI_KEY),
-    'yourprovider': YourProvider(settings.YOUR_API_KEY),   # ← add here
+    'yourprovider': YourProvider(settings.YOUR_API_KEY),  # ← add here
 }
 ```
 
-4. Add the key to `config/settings.py`:
-```python
-YOUR_API_KEY: str = ''
-```
+`RateService` and `CurrencyService` both receive the full providers dict and will automatically include the new provider in rate aggregation and currency seeding.
 
-5. Write unit tests in `tests/unit/infrastructure/providers/test_yourprovider.py` following the existing pattern.
+5. Write unit tests in `tests/unit/infrastructure/providers/test_yourprovider.py`.
 
-That's it. `RateService` picks up the new provider automatically from the `providers` dict.
+> **Note:** Adding a new provider will expand the intersection of supported currencies on the **next fresh database** (or if you clear the `supported_currencies` table). Existing deployments won't re-seed automatically.
 
 ---
 
 ## Adding a New Endpoint
 
-1. Add the route to `api/routes/currency.py`:
-```python
-@router.get('/history/{from_currency}/{to_currency}', response_model=RateHistoryResponse)
-async def get_rate_history(
-    from_currency: Annotated[str, Path(min_length=3, max_length=5)],
-    to_currency: Annotated[str, Path(min_length=3, max_length=5)],
-    service: Annotated[RateService, Depends(get_rate_service)],
-) -> RateHistoryResponse:
-    ...
-```
+1. Add route to `api/routes/currency.py`
+2. Add request/response schemas to `api/schemas/`
+3. Add method to the relevant service in `application/services/`
+4. If new data access is needed, add a method to `infrastructure/persistence/repositories/currency.py`
 
-2. Add request/response schemas to `api/schemas/`.
-
-3. Add service method to the appropriate service in `application/services/`.
-
-4. If the service needs new data access, add a method to `infrastructure/persistence/repositories/currency.py`.
-
-Follow the existing chain: route → service → repository.
+Chain is always: route → service → repository.
 
 ---
 
 ## Database Migrations
 
-This project uses Alembic for schema migrations.
+Alembic manages all schema changes. The `env.py` reads `DATABASE_URL` from the environment, so always ensure it's set before running migration commands.
+
+### Workflow
+
 ```bash
-# Create a new migration after changing ORM models
-alembic revision --autogenerate -m "describe your change"
+# After changing an ORM model in infrastructure/persistence/models/
+alembic revision --autogenerate -m "describe what changed"
 
-# Apply all pending migrations
+# Always review the generated file in alembic/versions/ before applying
+# Autogenerate is good but not perfect — check it caught everything
+
 alembic upgrade head
-
-# Rollback one migration
-alembic downgrade -1
 ```
 
-> The `entrypoint.sh` script runs `alembic upgrade head` automatically on container startup.
+### Other useful commands
+```bash
+alembic current        # show current revision in the DB
+alembic history        # list all migrations
+alembic downgrade -1   # roll back one migration
+```
+
+### Rules
+- **Never** run `alembic revision --autogenerate` unless you have actually changed a model. It is not a sync command — it generates a diff file. Running it on an unchanged schema produces an empty migration that clutters the history.
+- **Never** run `alembic revision --autogenerate` in `entrypoint.sh` or any startup script. The entrypoint only runs `alembic upgrade head` (applies existing migrations). Migration *files* are created by developers and committed to the repo.
 
 ---
 
@@ -342,34 +310,28 @@ alembic downgrade -1
 
 ### `lint-and-test` job
 
-1. Spins up Postgres and Redis as GitHub Actions services
-2. Installs Python dependencies
-3. Runs `ruff check .` — fails fast on lint errors
-4. Runs `alembic upgrade head` on the test database
+1. Spins up Postgres 15 and Redis 6 as GitHub Actions services
+2. Installs dependencies via `uv pip install --system -e .`
+3. Runs `ruff check .`
+4. Runs `alembic upgrade head` against the test database
 5. Runs `pytest`
 
 ### `build-and-push` job (master only)
 
-1. Runs after `lint-and-test` passes
-2. Builds the Docker image
-3. Pushes to GitHub Container Registry (GHCR) with two tags:
-   - `ghcr.io/org/repo:latest`
-   - `ghcr.io/org/repo:{git-sha}`
-
-> Pull requests only run `lint-and-test`. The Docker push only happens on merges to `master`.
+Runs after `lint-and-test` passes, builds the Docker image and pushes to GitHub Container Registry with two tags: `latest` and the git SHA.
 
 ---
 
 ## Common Pitfalls
 
-**`Decimal` precision loss** — Always convert float API responses to `Decimal` via `str` first: `Decimal(str(float_value))`, never `Decimal(float_value)`. The providers already do this correctly.
+**`Decimal` precision loss** — Always convert float API responses via `str` first: `Decimal(str(float_value))`, never `Decimal(float_value)`. The providers already do this correctly.
 
-**Session lifecycle** — Never hold an `AsyncSession` open longer than a single request. The `get_db_session()` dependency manages commit/rollback/close automatically.
+**Session lifecycle** — Never hold an `AsyncSession` open longer than a single request. `get_db_session()` manages commit/rollback/close automatically.
 
-**Cache invalidation** — There is no explicit cache invalidation. Rates expire after 5 minutes naturally. If you need to force-refresh a rate, delete the key manually: `redis-cli DEL rate:USD:EUR`.
+**Currency re-seeding** — Supported currencies are only fetched from providers once (when the DB is empty). If you add a provider and want to re-seed, truncate the `supported_currencies` table and restart the app.
 
-**Bootstrap failure** — If providers are unreachable at startup (e.g., bad API keys), the app will raise `ProviderError` and exit. Check your `.env` keys first.
+**`asyncio_mode = "auto"` in tests** — All test functions run as async automatically. Don't mix sync and async test helpers without being intentional about it.
 
-**`asyncio_mode = "auto"` in tests** — All test functions in this project are run as async automatically. Don't mix sync and async test helpers without being intentional about it.
+**Provider free-tier limits** — Fixer.io's free tier only supports EUR as the base currency. Use OpenExchange or CurrencyAPI as primary during local development if you need other base currencies.
 
-**Provider free-tier limits** — Fixer.io's free tier only supports EUR as the base currency. If you're testing with other base currencies locally, use OpenExchange or CurrencyAPI as your primary during development.
+**Running autogenerate on an unchanged schema** — This generates an empty migration file. Delete it and do not apply it. See the Migrations section above.

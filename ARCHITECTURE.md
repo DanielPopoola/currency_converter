@@ -72,8 +72,6 @@ Dependency rules:
 - `domain/` imports nothing from other project layers (pure Python)
 - `infrastructure/` imports from `domain/` only
 
-This means changing how Redis stores data never touches business logic. Swapping a currency provider only requires changes in `infrastructure/providers/`. The domain layer is always stable.
-
 ---
 
 ## Layer Responsibilities
@@ -95,7 +93,7 @@ The API layer performs **no business logic**. It validates input, calls a servic
 
 | Service | Responsibility |
 |---------|----------------|
-| `CurrencyService` | Managing supported currencies, validating currency codes |
+| `CurrencyService` | Managing supported currencies, one-time seeding, validation |
 | `RateService` | Fetching, aggregating, and caching exchange rates |
 | `ConversionService` | Orchestrating end-to-end currency conversion |
 
@@ -106,7 +104,7 @@ The API layer performs **no business logic**. It validates input, calls a servic
 | `models/currency.py` | Frozen dataclasses: `ExchangeRate`, `SupportedCurrency`, `AggregatedRate` |
 | `exceptions/currency.py` | Typed exceptions: `InvalidCurrencyError`, `ProviderError`, `CacheError` |
 
-Completely framework-free. No FastAPI, SQLAlchemy, or Redis — just plain Python. Trivially testable.
+Completely framework-free. No FastAPI, SQLAlchemy, or Redis — just plain Python.
 
 ### Layer 4 — Infrastructure (`infrastructure/`)
 
@@ -146,7 +144,7 @@ GET /api/convert/USD/EUR/100
 
 ### Happy Path: Cache Hit (within 5 min)
 
-Same as above, but after `Redis get_rate("USD", "EUR")` returns `HIT`. The aggregate step is skipped entirely — zero external API calls.
+Same as above, but `Redis get_rate("USD", "EUR")` returns HIT. The aggregate step is skipped entirely — zero external API calls.
 
 ---
 
@@ -176,7 +174,6 @@ rate_history (
     source        VARCHAR(50)   NOT NULL,
     UNIQUE(from_currency, to_currency, timestamp)
 )
--- Indexes: from_currency, to_currency, timestamp (individual)
 ```
 
 ### Provider Interface (Protocol)
@@ -188,8 +185,6 @@ class ExchangeRateProvider(Protocol):
     async def fetch_supported_currencies(self) -> list[dict]: ...
     async def close(self) -> None: ...
 ```
-
-Each provider owns its own `httpx.AsyncClient` and translates its API's error format into `ProviderError`. The injected-client pattern makes mocking trivial in tests.
 
 ---
 
@@ -227,8 +222,6 @@ Request → Redis HIT? → Yes → Return immediately (no API calls)
                                                  → Return
 ```
 
-Cache is always written through. Every fresh fetch populates Redis immediately, so the second request for any pair within 5 minutes is free.
-
 ---
 
 ## Dependency Injection
@@ -245,8 +238,6 @@ Per-request (FastAPI Depends, created fresh):
   get_rate_service()         → RateService(svc, repo, providers)
   get_conversion_service()   → ConversionService(rate_svc, svc)
 ```
-
-FastAPI resolves the full graph automatically. Endpoints only declare their immediate dependency.
 
 ---
 
@@ -265,20 +256,29 @@ Exception (catch-all)  →  500   →  {"detail": "Internal server error"}
 
 ## Startup Sequence
 ```
+entrypoint.sh
+  ├── wait for PostgreSQL to be ready (pg_isready loop)
+  └── alembic upgrade head  → creates tables if this is a fresh database
+
 lifespan() starts
-  ├── init_dependencies()       → creates DB, Redis, 3 providers
-  ├── db.create_tables()        → CREATE TABLE IF NOT EXISTS
+  ├── init_dependencies()   → creates DB engine, Redis client, 3 provider clients
   └── bootstrap()
         └── initialize_supported_currencies()
-              ├── asyncio.gather() fetch from all 3 providers
-              ├── set intersection of supported codes
-              ├── INSERT into supported_currencies
-              └── SET currencies:supported in Redis (24h TTL)
+              ├── get_supported_currencies() → DB query
+              │
+              ├── [DB has data] → log "already initialized", return
+              │     └── Redis cache warmed as side effect of DB read
+              │
+              └── [DB empty — first startup only]
+                    ├── asyncio.gather() fetch from all 3 providers
+                    ├── set intersection of supported codes
+                    ├── INSERT into supported_currencies
+                    └── Redis cache warmed on next read
 
 Application ready ✓
 
 [on shutdown]
-  └── cleanup_dependencies()   → closes Redis, DB engine, provider clients
+  └── cleanup_dependencies()  → closes Redis, DB engine, provider clients
 ```
 
-If all providers fail during bootstrap, `ProviderError` is raised and the app exits — preventing startup with no valid currency data.
+The expensive provider calls at boot happen **exactly once** — on first startup when the database is empty. Every subsequent restart reads from the database.

@@ -2,7 +2,7 @@
 
 A production-ready currency conversion service built with FastAPI that aggregates exchange rates from multiple providers to ensure reliability and accuracy.
 
-## 🎯 Overview
+## Overview
 
 This service provides real-time currency conversion with automatic fallback between multiple exchange rate providers. It implements a clean 4-layer architecture with Redis caching and PostgreSQL persistence for historical data tracking.
 
@@ -14,24 +14,22 @@ This service provides real-time currency conversion with automatic fallback betw
 - **Rate History**: PostgreSQL stores all fetched rates for historical analysis
 - **Retry Logic**: Exponential backoff for transient network errors
 - **Currency Validation**: Only supports currencies available across ALL providers
-- **Type Safety**: Full type hints with Pydantic validation
+- **One-time Seeding**: Supported currencies are fetched from providers once on first startup and persisted — subsequent startups read from the database
 
-## 🏗️ Architecture
+## Architecture
 
 ### Layered Design
 
-The project follows a strict 4-layer architecture where each layer only communicates with the layer directly below it:
-
 ```
 ┌─────────────────────────────────────┐
-│   API Layer (FastAPI Routes)       │  ← HTTP endpoints, request/response
+│   API Layer (FastAPI Routes)        │  ← HTTP endpoints, request/response
 ├─────────────────────────────────────┤
-│   Application Layer (Services)     │  ← Business logic, orchestration
+│   Application Layer (Services)      │  ← Business logic, orchestration
 ├─────────────────────────────────────┤
-│   Domain Layer (Models)            │  ← Core entities, exceptions
+│   Domain Layer (Models)             │  ← Core entities, exceptions
 ├─────────────────────────────────────┤
-│   Infrastructure Layer             │  ← External services, database
-│   (Providers, Cache, Repository)   │
+│   Infrastructure Layer              │  ← External services, database
+│   (Providers, Cache, Repository)    │
 └─────────────────────────────────────┘
 ```
 
@@ -42,7 +40,7 @@ The project follows a strict 4-layer architecture where each layer only communic
    ↓
 2. API Layer validates input (Pydantic)
    ↓
-3. Application Service checks currency validity
+3. Application Service checks currency validity (Redis → DB)
    ↓
 4. Repository checks Redis cache
    ↓
@@ -57,7 +55,7 @@ The project follows a strict 4-layer architecture where each layer only communic
 9. Return to client
 ```
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 .
@@ -73,49 +71,47 @@ The project follows a strict 4-layer architecture where each layer only communic
 │
 ├── application/
 │   └── services/
-│       ├── currency_service.py  # Currency validation & initialization
+│       ├── currency_service.py  # Currency validation & seeding
 │       ├── rate_service.py      # Rate fetching & aggregation
-│       └── conversion_service.py # Amount conversion logic
+│       └── conversion_service.py
 │
 ├── domain/
-│   ├── models/
-│   │   └── currency.py          # Core entities (frozen dataclasses)
-│   └── exceptions/
-│       └── currency.py          # Domain-specific exceptions
+│   ├── models/currency.py       # Core entities (frozen dataclasses)
+│   └── exceptions/currency.py  # Domain-specific exceptions
 │
 ├── infrastructure/
 │   ├── providers/
 │   │   ├── base.py              # Provider protocol (interface)
-│   │   ├── fixerio.py           # Fixer.io integration
-│   │   ├── openexchange.py      # OpenExchange integration
-│   │   └── currencyapi.py       # CurrencyAPI integration
-│   ├── cache/
-│   │   └── redis_cache.py       # Redis caching service
+│   │   ├── fixerio.py
+│   │   ├── openexchange.py
+│   │   └── currencyapi.py
+│   ├── cache/redis_cache.py
 │   └── persistence/
-│       ├── database.py          # SQLAlchemy async session
-│       ├── models/
-│       │   └── currency.py      # Database tables
-│       └── repositories/
-│           └── currency.py      # Data access layer
+│       ├── database.py
+│       ├── models/currency.py   # SQLAlchemy ORM models
+│       └── repositories/currency.py
 │
-├── config/
-│   └── settings.py              # Environment configuration
+├── alembic/                     # Database migrations
+│   ├── versions/
+│   │   └── 0001_initial_tables.py
+│   └── env.py
 │
+├── config/settings.py
+├── Dockerfile
 └── docker/
-    ├── docker-compose.yml       # Container orchestration
-    ├── .env.example             # Environment variables template
-    └── entrypoint.sh            # Database migration script
+    ├── docker-compose.yml
+    └── entrypoint.sh
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
 - Docker & Docker Compose
-- API keys for currency providers:
-  - [Fixer.io](https://fixer.io/) (free tier available)
-  - [OpenExchange](https://openexchangerates.org/) (free tier available)
-  - [CurrencyAPI](https://currencyapi.com/) (free tier available)
+- API keys for the three currency providers:
+  - [Fixer.io](https://fixer.io/) — free tier only supports EUR as base currency
+  - [OpenExchangeRates](https://openexchangerates.org/) — free tier available
+  - [CurrencyAPI](https://currencyapi.com/) — free tier available
 
 ### Installation
 
@@ -127,83 +123,64 @@ The project follows a strict 4-layer architecture where each layer only communic
 
 2. **Configure environment variables**
    ```bash
-   cp docker/.env.example docker/.env
+   cp .env.example .env
    ```
 
-   Edit `docker/.env` and add your API keys:
+   Fill in your API keys:
    ```env
    FIXERIO_API_KEY=your_fixer_key_here
-   OPENEXCHANGE_APP_ID=your_openexchange_key_here
+   OPENEXCHANGE_APP_ID=your_openexchange_id_here
    CURRENCYAPI_KEY=your_currencyapi_key_here
-
-   DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/currency_converter
-   REDIS_URL=redis://redis:6379/0
    ```
 
 3. **Start the services**
    ```bash
-   docker-compose -f docker/docker-compose.yml up --build
+   docker compose -f docker/docker-compose.yml up --build
    ```
 
-   This will:
-   - Start PostgreSQL database
-   - Start Redis cache
-   - Run database migrations (Alembic)
-   - Initialize supported currencies from providers
-   - Start the FastAPI server on port 8000
+   On first startup this will:
+   - Start PostgreSQL and Redis
+   - Run Alembic migrations to create tables
+   - Fetch supported currencies from all three providers and persist them
+   - Start the API on port 8000
 
-4. **Verify it's running**
+   On every subsequent startup, the persisted currencies are used directly — no provider calls at boot.
+
+4. **Verify**
    ```bash
    curl http://localhost:8000/docs
    ```
-   You should see the Swagger UI documentation.
 
-## 📡 API Endpoints
+## API Endpoints
 
-### Base URL: `http://localhost:8000`
-
-### 1. Convert Currency
+### GET /api/convert/{from_currency}/{to_currency}/{amount}
 
 Convert an amount from one currency to another.
 
-**Endpoint:** `POST /api/convert`
-
-**Request Body:**
-```json
-{
-  "from_currency": "USD",
-  "to_currency": "EUR",
-  "amount": 100.00
-}
+```bash
+curl http://localhost:8000/api/convert/USD/EUR/100
 ```
 
-**Response:**
 ```json
 {
   "from_currency": "USD",
   "to_currency": "EUR",
   "original_amount": 100.00,
-  "converted_amount": 92.50,
-  "exchange_rate": 0.925,
+  "converted_amount": 92.55,
+  "exchange_rate": 0.9255,
   "timestamp": "2025-11-01T14:30:00Z",
   "source": "averaged"
 }
 ```
 
-**Example:**
+### GET /api/rate/{from_currency}/{to_currency}
+
+Get the current exchange rate between two currencies.
+
 ```bash
-curl -X POST http://localhost:8000/api/convert \
-  -H "Content-Type: application/json" \
-  -d '{"from_currency": "USD", "to_currency": "EUR", "amount": 100}'
+curl http://localhost:8000/api/rate/USD/JPY
 ```
 
-### 2. Get Exchange Rate
-
-Fetch the current exchange rate between two currencies.
-
-**Endpoint:** `GET /api/rate/{from_currency}/{to_currency}`
-
-**Response:**
 ```json
 {
   "from_currency": "USD",
@@ -214,210 +191,80 @@ Fetch the current exchange rate between two currencies.
 }
 ```
 
-**Example:**
+### GET /api/currencies
+
+List all supported currency codes.
+
 ```bash
-curl http://localhost:8000/api/rate/USD/JPY
+curl http://localhost:8000/api/currencies
 ```
 
-### 3. API Documentation
+```json
+{
+  "currencies": ["USD", "EUR", "GBP", "JPY", "NGN", "..."]
+}
+```
 
-Interactive API documentation is available at:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+Interactive documentation: http://localhost:8000/docs
 
-## 🔧 How It Works
+## How It Works
 
 ### Multi-Provider Strategy
 
-The service queries **all 3 providers** in parallel for every request:
+All 3 providers are queried in parallel for every cache miss:
 
-1. **Parallel Fetch**: Uses `asyncio.gather()` to fetch from all providers simultaneously
-2. **Error Tolerance**: If a provider fails, it's excluded from averaging
-3. **Rate Averaging**: Takes the mean of all successful responses
-4. **Source Tracking**: Records which providers contributed to the final rate
-
-**Example:**
-- Fixer.io returns: `1.2500`
-- OpenExchange returns: `1.2520`
+- Fixer.io returns: `0.9250`
+- OpenExchangeRates returns: `0.9260`
 - CurrencyAPI fails (timeout)
-- **Final averaged rate**: `(1.2500 + 1.2520) / 2 = 1.2510`
+- **Final rate**: `(0.9250 + 0.9260) / 2 = 0.9255`
 
-### Caching Strategy
+If one or two providers fail, the average of the remaining responses is used. Only if all three fail does the service return a 503.
 
-```python
-# On first request: USD/EUR
-1. Check Redis cache → MISS
-2. Fetch from all providers (parallel)
-3. Average the results
-4. Store in Redis (TTL: 5 minutes)
-5. Store in PostgreSQL (permanent history)
-6. Return to client
+### Caching
 
-# Subsequent requests within 5 minutes: USD/EUR
-1. Check Redis cache → HIT
-2. Return cached rate immediately (no provider calls)
+```
+First request for USD/EUR:
+  Redis MISS → fetch from providers → cache in Redis (5 min TTL) → store in PostgreSQL
+
+Subsequent requests within 5 minutes:
+  Redis HIT → return immediately (zero provider calls)
 ```
 
 ### Supported Currencies
 
-At startup, the service:
-1. Fetches all supported currencies from each provider
-2. Calculates the **intersection** (only currencies ALL providers support)
-3. Stores the result in PostgreSQL
-4. Caches in Redis (TTL: 24 hours)
+On first startup the service fetches all supported currencies from each provider, takes the intersection (only currencies all providers support), and persists them to PostgreSQL. Every subsequent startup reads from the database instead of calling providers.
 
-This ensures you can only request currency pairs that all providers can serve, preventing partial failures.
+## Error Handling
 
-## 🛡️ Error Handling
+| Status | Meaning |
+|--------|---------|
+| `200` | Success |
+| `400` | Unsupported currency code |
+| `503` | All providers are down |
+| `500` | Unexpected server error |
 
-The API uses specific HTTP status codes:
+## Configuration
 
-| Status Code | Meaning | Example |
-|-------------|---------|---------|
-| `200` | Success | Conversion completed |
-| `400` | Invalid input | Unsupported currency code |
-| `503` | Service unavailable | All providers are down |
-| `500` | Internal error | Unexpected server error |
+All config is via the root `.env` file. Docker reads the same file and overrides only the database and Redis hostnames internally.
 
-**Example Error Response:**
-```json
-{
-  "detail": "Currency XYZ is not supported"
-}
-```
+| Variable | Description |
+|----------|-------------|
+| `FIXERIO_API_KEY` | Fixer.io API key |
+| `OPENEXCHANGE_APP_ID` | OpenExchangeRates app ID |
+| `CURRENCYAPI_KEY` | CurrencyAPI key |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis connection string |
+| `POSTGRES_USER` | Postgres username (used by Docker) |
+| `POSTGRES_PASSWORD` | Postgres password (used by Docker) |
+| `POSTGRES_DB` | Postgres database name (used by Docker) |
 
-## ⚙️ Configuration
+## Testing
 
-All configuration is done via environment variables in `docker/.env`:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `FIXERIO_API_KEY` | Fixer.io API key | Required |
-| `OPENEXCHANGE_APP_ID` | OpenExchange app ID | Required |
-| `CURRENCYAPI_KEY` | CurrencyAPI key | Required |
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://...` |
-| `REDIS_URL` | Redis connection string | `redis://redis:6379/0` |
-
-## 🧪 Testing
-
-### Run Tests
 ```bash
 pytest
-```
-
-### Test Coverage
-```bash
 pytest --cov=. --cov-report=html
 ```
 
-### Manual Testing
+## License
 
-Use the provided Swagger UI at http://localhost:8000/docs to test all endpoints interactively.
-
-## 📊 Database Schema
-
-### Tables
-
-**supported_currencies**
-```sql
-CREATE TABLE supported_currencies (
-    code VARCHAR(5) PRIMARY KEY,
-    name VARCHAR(100)
-);
-```
-
-**rate_history**
-```sql
-CREATE TABLE rate_history (
-    id SERIAL PRIMARY KEY,
-    from_currency VARCHAR(5) NOT NULL,
-    to_currency VARCHAR(5) NOT NULL,
-    rate DECIMAL(18, 6) NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
-    source VARCHAR(50) NOT NULL,
-    UNIQUE(from_currency, to_currency, timestamp)
-);
-```
-
-## 🔍 Monitoring & Logs
-
-The application uses structured logging. All logs are output to stdout in JSON format:
-
-```json
-{
-  "timestamp": "2025-11-01T14:30:00Z",
-  "level": "INFO",
-  "message": "Cache HIT: USD/EUR"
-}
-```
-
-### Key Log Events
-
-- `Cache HIT/MISS`: Indicates cache performance
-- `Provider {name} failed`: Provider-specific errors
-- `All providers failed`: Critical error requiring attention
-- `Saved N supported currencies`: Startup initialization
-
-## 🚧 Development
-
-### Local Development (without Docker)
-
-1. Install dependencies:
-   ```bash
-   poetry add
-   ```
-
-2. Start PostgreSQL and Redis locally
-
-3. Run migrations:
-   ```bash
-   alembic upgrade head
-   ```
-
-4. Start the server:
-   ```bash
-   uvicorn api.main:app --reload
-   ```
-
-### Adding a New Provider
-
-1. Create a new file in `infrastructure/providers/`:
-   ```python
-   # infrastructure/providers/newprovider.py
-   class NewProvider:
-       @property
-       def name(self) -> str:
-           return "newprovider"
-
-       async def fetch_rate(self, from_currency: str, to_currency: str) -> Decimal:
-           # Implementation
-
-       async def fetch_supported_currencies(self) -> list[dict]:
-           # Implementation
-   ```
-
-2. Register in `api/dependencies.py`:
-   ```python
-   deps.providers = {
-       'fixerio': FixerIOProvider(...),
-       'openexchange': OpenExchangeProvider(...),
-       'newprovider': NewProvider(...),  # Add here
-   }
-   ```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License.
-
-## 🙏 Acknowledgments
-
-- [FastAPI](https://fastapi.tiangolo.com/) for the excellent web framework
-- [Fixer.io](https://fixer.io/), [OpenExchange](https://openexchangerates.org/), [CurrencyAPI](https://currencyapi.com/) for providing exchange rate data
+MIT
