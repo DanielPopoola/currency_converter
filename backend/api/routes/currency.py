@@ -8,7 +8,13 @@ from api.dependencies import (
 	get_currency_service,
 	get_rate_service,
 )
-from api.schemas import ConversionResponse, ExchangeRateResponse, SupportedCurrenciesResponse
+from api.schemas import (
+	ConversionResponse,
+	ExchangeRateResponse,
+	HealthResponse,
+	ProviderHealthResponse,
+	SupportedCurrenciesResponse,
+)
 from application.services import (
 	ConversionService,
 	CurrencyService,
@@ -101,3 +107,25 @@ async def get_supported_currencies(
 ) -> SupportedCurrenciesResponse:
 	currencies = await service.get_supported_currencies()
 	return SupportedCurrenciesResponse(currencies=currencies)
+
+
+@router.get(
+	'/health',
+	response_model=HealthResponse,
+	status_code=status.HTTP_200_OK,
+	summary='Get exchange provider health status',
+)
+async def get_provider_health(
+	rate_service: Annotated[RateService, Depends(get_rate_service)],
+) -> HealthResponse:
+	provider_health = await rate_service.get_provider_health()
+	providers = [ProviderHealthResponse(**item) for item in provider_health]
+	healthy_count = sum(1 for item in provider_health if item['status'] == 'operational')
+	total_count = len(provider_health)
+	overall_status = 'healthy' if healthy_count == total_count else 'degraded'
+	return HealthResponse(
+		providers=providers,
+		healthy_providers=healthy_count,
+		total_providers=total_count,
+		status=overall_status,
+	)
