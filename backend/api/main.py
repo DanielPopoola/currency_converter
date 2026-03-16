@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from api.dependencies import bootstrap, cleanup_dependencies, init_dependencies
@@ -32,6 +33,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
+
+allowed_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(',') if origin.strip()]
+
+app.add_middleware(
+	CORSMiddleware,
+	allow_origins=allowed_origins or ["*"],
+	allow_credentials=True,
+	allow_methods=["*"],
+	allow_headers=["*"],
+)
 
 
 @app.exception_handler(Exception)
