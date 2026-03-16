@@ -58,3 +58,16 @@ class SupportedCurrenciesResponse(BaseModel):
 	)
 
 	currencies: list[str] = Field(..., description='List of supported currency codes')
+
+
+class ProviderHealthResponse(BaseModel):
+	name: str = Field(..., description='Provider identifier')
+	status: str = Field(..., description='Provider status: operational or down')
+	error: str | None = Field(default=None, description='Error details when provider is down')
+
+
+class HealthResponse(BaseModel):
+	providers: list[ProviderHealthResponse] = Field(..., description='Status of each configured provider')
+	healthy_providers: int = Field(..., description='Number of providers currently operational')
+	total_providers: int = Field(..., description='Total number of configured providers')
+	status: str = Field(..., description='Overall system status')

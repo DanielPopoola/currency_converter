@@ -17,6 +17,20 @@ interface CurrenciesApiResponse {
   currencies: string[];
 }
 
+
+interface ProviderHealthApiResponse {
+  name: string;
+  status: "operational" | "down";
+  error: string | null;
+}
+
+interface HealthApiResponse {
+  providers: ProviderHealthApiResponse[];
+  healthy_providers: number;
+  total_providers: number;
+  status: "healthy" | "degraded";
+}
+
 export interface ConvertResult {
   convertedAmount: number;
   exchangeRate: number;
@@ -28,6 +42,19 @@ export interface RateResult {
   rate: number;
   timestamp: string;
   source: string;
+}
+
+export interface ProviderHealth {
+  name: string;
+  status: "operational" | "down";
+  error: string | null;
+}
+
+export interface HealthResult {
+  providers: ProviderHealth[];
+  healthyProviders: number;
+  totalProviders: number;
+  status: "healthy" | "degraded";
 }
 
 async function request<T>(path: string): Promise<T> {
@@ -63,5 +90,16 @@ export async function fetchRate(from: string, to: string): Promise<RateResult> {
     rate: Number.parseFloat(data.rate),
     timestamp: data.timestamp,
     source: data.source,
+  };
+}
+
+export async function fetchHealth(): Promise<HealthResult> {
+  const data = await request<HealthApiResponse>("/api/health");
+
+  return {
+    providers: data.providers,
+    healthyProviders: data.healthy_providers,
+    totalProviders: data.total_providers,
+    status: data.status,
   };
 }

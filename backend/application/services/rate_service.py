@@ -92,3 +92,18 @@ class RateService:
 			sources=list(rates.keys()),
 			individual_rates=rates,
 		)
+
+
+	async def get_provider_health(self) -> list[dict[str, str | None]]:
+		providers = [self.primary_provider] + self.secondary_providers
+		health: list[dict[str, str | None]] = []
+
+		for provider in providers:
+			try:
+				await provider.fetch_supported_currencies()
+				health.append({'name': provider.name, 'status': 'operational', 'error': None})
+			except Exception as e:
+				logger.error(f'Provider {provider.name} health check failed: {e}')
+				health.append({'name': provider.name, 'status': 'down', 'error': str(e)})
+
+		return health
