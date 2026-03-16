@@ -108,6 +108,7 @@ This service provides real-time currency conversion with automatic fallback betw
 ### Prerequisites
 
 - Docker & Docker Compose
+- Node.js 20+ (optional, only needed for local frontend development outside Docker)
 - API keys for the three currency providers:
   - [Fixer.io](https://fixer.io/) — free tier only supports EUR as base currency
   - [OpenExchangeRates](https://openexchangerates.org/) — free tier available
@@ -133,7 +134,7 @@ This service provides real-time currency conversion with automatic fallback betw
    CURRENCYAPI_KEY=your_currencyapi_key_here
    ```
 
-3. **Start the services**
+3. **Start the full stack (backend + frontend + infra)**
    ```bash
    docker compose -f docker/docker-compose.yml up --build
    ```
@@ -143,12 +144,18 @@ This service provides real-time currency conversion with automatic fallback betw
    - Run Alembic migrations to create tables
    - Fetch supported currencies from all three providers and persist them
    - Start the API on port 8000
+   - Build and run the frontend on port 5173
 
    On every subsequent startup, the persisted currencies are used directly — no provider calls at boot.
 
 4. **Verify**
    ```bash
    curl http://localhost:8000/docs
+   ```
+
+   Open the frontend at:
+   ```
+   http://localhost:5173
    ```
 
 ## API Endpoints

@@ -1,10 +1,25 @@
+# Currency Converter Frontend
 
-  # Currency Converter Frontend Design
+This is the React/Vite frontend for the Currency Converter project.
 
-  This is a code bundle for Currency Converter Frontend Design. The original project is available at https://www.figma.com/design/1cSounqWSc7EB5EPmdAMUy/Currency-Converter-Frontend-Design.
+## Local development
 
-  ## Running the code
+Run `npm i` to install dependencies.
 
-  Run `npm i` to install the dependencies.
+Run `npm run dev` to start the development server.
 
-  Run `npm run dev` to start the development server.
+## Docker
+
+Build the frontend image:
+
+```bash
+docker build -t currency-converter-frontend .
+```
+
+Run the container:
+
+```bash
+docker run --rm -p 5173:80 currency-converter-frontend
+```
+
+The app will be available at `http://localhost:5173`.
