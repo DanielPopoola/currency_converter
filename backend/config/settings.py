@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 	# Application
 	APP_NAME: str = 'Currency Converter API'
 	DEBUG: bool = True
+	CORS_ORIGINS: str = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173'
 
 	model_config = SettingsConfigDict(env_file='.env', case_sensitive=False, extra='ignore')
 
