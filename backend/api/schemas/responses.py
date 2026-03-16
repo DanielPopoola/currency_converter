@@ -67,7 +67,9 @@ class ProviderHealthResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
-	providers: list[ProviderHealthResponse] = Field(..., description='Status of each configured provider')
+	providers: list[ProviderHealthResponse] = Field(
+		..., description='Status of each configured provider'
+	)
 	healthy_providers: int = Field(..., description='Number of providers currently operational')
 	total_providers: int = Field(..., description='Total number of configured providers')
 	status: str = Field(..., description='Overall system status')

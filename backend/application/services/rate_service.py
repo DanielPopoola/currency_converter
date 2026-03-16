@@ -93,7 +93,6 @@ class RateService:
 			individual_rates=rates,
 		)
 
-
 	async def get_provider_health(self) -> list[dict[str, str | None]]:
 		providers = [self.primary_provider] + self.secondary_providers
 		health: list[dict[str, str | None]] = []
