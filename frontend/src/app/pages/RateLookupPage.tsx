@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight, TrendingUp, Info } from "lucide-react";
 import { CurrencySelector } from "../components/ui/CurrencySelector";
-import { currencies as defaultCurrencies, Currency, getCurrenciesFromCodes } from "../data/currencies";
+import { Currency, currencies as fallbackCurrencies } from "../data/currencies";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
-import { fetchRate, fetchSupportedCurrencies } from "../../lib/api";
+import { fetchRate } from "../../lib/api";
+import { useSupportedCurrencies } from "../hooks/useSupportedCurrencies";
 
 const mockData = [
   { value: 0.910 },
@@ -18,28 +19,17 @@ const mockData = [
 ];
 
 export function RateLookupPage() {
-  const [supportedCurrencies, setSupportedCurrencies] = useState<Currency[]>(defaultCurrencies);
-  const [from, setFrom] = useState<Currency>(defaultCurrencies[0]);
-  const [to, setTo] = useState<Currency>(defaultCurrencies[1]);
+  const { currencies: supportedCurrencies } = useSupportedCurrencies();
+  const [from, setFrom] = useState<Currency>(fallbackCurrencies[0]);
+  const [to, setTo] = useState<Currency>(fallbackCurrencies[1]);
   const [rate, setRate] = useState<number | null>(null);
 
   useEffect(() => {
-    const loadCurrencies = async () => {
-      try {
-        const codes = await fetchSupportedCurrencies();
-        const currencies = getCurrenciesFromCodes(codes);
-        setSupportedCurrencies(currencies);
-        if (currencies.length >= 2) {
-          setFrom(currencies[0]);
-          setTo(currencies[1]);
-        }
-      } catch (error) {
-        console.error("Failed to load supported currencies", error);
-      }
-    };
-
-    void loadCurrencies();
-  }, []);
+    if (supportedCurrencies.length >= 2) {
+      setFrom((prev) => supportedCurrencies.find((currency) => currency.code === prev.code) ?? supportedCurrencies[0]);
+      setTo((prev) => supportedCurrencies.find((currency) => currency.code === prev.code) ?? supportedCurrencies[1]);
+    }
+  }, [supportedCurrencies]);
 
   useEffect(() => {
     const loadRate = async () => {

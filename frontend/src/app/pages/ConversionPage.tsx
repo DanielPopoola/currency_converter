@@ -2,35 +2,25 @@ import { useState, useCallback, useEffect } from "react";
 import { ArrowLeftRight, Calculator, RefreshCw, Sparkles, TrendingUp } from "lucide-react";
 import { CurrencySelector } from "../components/ui/CurrencySelector";
 import { ResultCard } from "../components/ui/ResultCard";
-import { currencies as defaultCurrencies, Currency, getCurrenciesFromCodes } from "../data/currencies";
-import { fetchConversion, fetchSupportedCurrencies } from "../../lib/api";
+import { Currency, currencies as fallbackCurrencies } from "../data/currencies";
+import { fetchConversion } from "../../lib/api";
+import { useSupportedCurrencies } from "../hooks/useSupportedCurrencies";
 
 export function ConversionPage() {
-  const [supportedCurrencies, setSupportedCurrencies] = useState<Currency[]>(defaultCurrencies);
-  const [from, setFrom] = useState<Currency>(defaultCurrencies[0]);
-  const [to, setTo] = useState<Currency>(defaultCurrencies[1]);
+  const { currencies: supportedCurrencies } = useSupportedCurrencies();
+  const [from, setFrom] = useState<Currency>(fallbackCurrencies[0]);
+  const [to, setTo] = useState<Currency>(fallbackCurrencies[1]);
   const [amount, setAmount] = useState<string>("1000.00");
   const [isLoading, setIsLoading] = useState(false);
   const [hasConverted, setHasConverted] = useState(false);
   const [rate, setRate] = useState(0.923456);
 
   useEffect(() => {
-    const loadCurrencies = async () => {
-      try {
-        const codes = await fetchSupportedCurrencies();
-        const currencies = getCurrenciesFromCodes(codes);
-        setSupportedCurrencies(currencies);
-        if (currencies.length >= 2) {
-          setFrom(currencies[0]);
-          setTo(currencies[1]);
-        }
-      } catch (error) {
-        console.error("Failed to load supported currencies", error);
-      }
-    };
-
-    void loadCurrencies();
-  }, []);
+    if (supportedCurrencies.length >= 2) {
+      setFrom((prev) => supportedCurrencies.find((currency) => currency.code === prev.code) ?? supportedCurrencies[0]);
+      setTo((prev) => supportedCurrencies.find((currency) => currency.code === prev.code) ?? supportedCurrencies[1]);
+    }
+  }, [supportedCurrencies]);
 
   const handleSwap = () => {
     setFrom(to);

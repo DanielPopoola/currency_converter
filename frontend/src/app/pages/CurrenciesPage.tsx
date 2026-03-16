@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Search, Globe, Star, Clock } from "lucide-react";
-import { Currency, currencies as defaultCurrencies, getCurrenciesFromCodes } from "../data/currencies";
-import { fetchSupportedCurrencies } from "../../lib/api";
+import { useSupportedCurrencies } from "../hooks/useSupportedCurrencies";
 
 export function CurrenciesPage() {
-  const [currencies, setCurrencies] = useState<Currency[]>(defaultCurrencies);
+  const { currencies } = useSupportedCurrencies();
   const [searchTerm, setSearchTerm] = useState("");
   const [favorites, setFavorites] = useState<string[]>(["USD", "EUR", "GBP"]);
 
