@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { ArrowUpRight, ArrowDownRight, TrendingUp, Info } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowUpRight, TrendingUp, Info } from "lucide-react";
 import { CurrencySelector } from "../components/ui/CurrencySelector";
-import { currencies, Currency } from "../data/currencies";
-import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, Tooltip } from "recharts";
+import { currencies as defaultCurrencies, Currency, getCurrenciesFromCodes } from "../data/currencies";
+import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
+import { fetchRate, fetchSupportedCurrencies } from "../../lib/api";
 
 const mockData = [
   { value: 0.910 },
@@ -17,8 +18,41 @@ const mockData = [
 ];
 
 export function RateLookupPage() {
-  const [from, setFrom] = useState<Currency>(currencies[0]); // USD
-  const [to, setTo] = useState<Currency>(currencies[1]); // EUR
+  const [supportedCurrencies, setSupportedCurrencies] = useState<Currency[]>(defaultCurrencies);
+  const [from, setFrom] = useState<Currency>(defaultCurrencies[0]);
+  const [to, setTo] = useState<Currency>(defaultCurrencies[1]);
+  const [rate, setRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    const loadCurrencies = async () => {
+      try {
+        const codes = await fetchSupportedCurrencies();
+        const currencies = getCurrenciesFromCodes(codes);
+        setSupportedCurrencies(currencies);
+        if (currencies.length >= 2) {
+          setFrom(currencies[0]);
+          setTo(currencies[1]);
+        }
+      } catch (error) {
+        console.error("Failed to load supported currencies", error);
+      }
+    };
+
+    void loadCurrencies();
+  }, []);
+
+  useEffect(() => {
+    const loadRate = async () => {
+      try {
+        const result = await fetchRate(from.code, to.code);
+        setRate(result.rate);
+      } catch (error) {
+        console.error("Failed to load exchange rate", error);
+      }
+    };
+
+    void loadRate();
+  }, [from.code, to.code]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -34,12 +68,14 @@ export function RateLookupPage() {
         <div className="bg-[#111827] border border-[#1F2937] rounded-3xl p-6 md:p-8 space-y-6">
           <div className="space-y-4">
             <CurrencySelector
+              currencies={supportedCurrencies}
               label="Source Currency"
               selected={from}
               onSelect={setFrom}
               exclude={to.code}
             />
             <CurrencySelector
+              currencies={supportedCurrencies}
               label="Target Currency"
               selected={to}
               onSelect={setTo}
@@ -59,7 +95,7 @@ export function RateLookupPage() {
             <div className="flex flex-col gap-1">
               <div className="flex items-baseline gap-3">
                 <h2 className="text-5xl font-mono font-bold text-white tracking-tight tabular-nums">
-                  0.9234
+                  {rate === null ? "--" : rate.toFixed(4)}
                 </h2>
                 <span className="text-xl font-mono font-bold text-gray-500 tracking-tight">
                   {to.code}
@@ -68,9 +104,9 @@ export function RateLookupPage() {
               <div className="flex items-center gap-2 mt-2">
                 <div className="flex items-center gap-1 text-emerald-500 font-mono text-sm font-bold">
                   <ArrowUpRight className="w-3.5 h-3.5" />
-                  <span>+0.04%</span>
+                  <span>Live</span>
                 </div>
-                <span className="text-[11px] text-gray-500 font-medium">Last 24h</span>
+                <span className="text-[11px] text-gray-500 font-medium">Latest fetched rate</span>
               </div>
             </div>
           </div>
@@ -96,7 +132,7 @@ export function RateLookupPage() {
                   dot={false}
                   animationDuration={2000}
                 />
-                <YAxis hide domain={['dataMin - 0.005', 'dataMax + 0.005']} />
+                <YAxis hide domain={["dataMin - 0.005", "dataMax + 0.005"]} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -104,8 +140,8 @@ export function RateLookupPage() {
           <div className="mt-6 p-4 rounded-xl bg-[#1F2937]/30 border border-[#374151] flex items-start gap-3">
             <Info className="w-4 h-4 text-teal-500 shrink-0 mt-0.5" />
             <p className="text-[11px] text-gray-400 leading-relaxed">
-              This chart shows the aggregated market movement across our 3 providers.
-              The rate is updated in real-time and cached in our high-performance Redis cluster.
+              This chart shows placeholder market movement until rate-history endpoint is integrated.
+              The live spot rate value above is fetched from the backend API.
             </p>
           </div>
         </div>

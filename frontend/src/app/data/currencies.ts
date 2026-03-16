@@ -5,7 +5,7 @@ export interface Currency {
   flag: string;
 }
 
-export const currencies: Currency[] = [
+export const currencyCatalog: Currency[] = [
   { code: "USD", name: "United States Dollar", symbol: "$", flag: "🇺🇸" },
   { code: "EUR", name: "Euro", symbol: "€", flag: "🇪🇺" },
   { code: "GBP", name: "British Pound Sterling", symbol: "£", flag: "🇬🇧" },
@@ -27,3 +27,16 @@ export const currencies: Currency[] = [
   { code: "THB", name: "Thai Baht", symbol: "฿", flag: "🇹🇭" },
   { code: "MYR", name: "Malaysian Ringgit", symbol: "RM", flag: "🇲🇾" },
 ];
+
+const currencyLookup = new Map(currencyCatalog.map((currency) => [currency.code, currency]));
+
+export function getCurrenciesFromCodes(codes: string[]): Currency[] {
+  return codes.map((code) => currencyLookup.get(code) ?? {
+    code,
+    name: code,
+    symbol: code,
+    flag: "🏳️",
+  });
+}
+
+export const currencies = currencyCatalog;

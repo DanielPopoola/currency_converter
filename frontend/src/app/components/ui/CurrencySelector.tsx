@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Search } from "lucide-react";
-import { currencies, Currency } from "../../data/currencies";
+import { currencies as defaultCurrencies, Currency } from "../../data/currencies";
 import { motion, AnimatePresence } from "motion/react";
 
 interface CurrencySelectorProps {
+  currencies?: Currency[];
   label: string;
   selected: Currency;
   onSelect: (currency: Currency) => void;
   exclude?: string;
 }
 
-export function CurrencySelector({ label, selected, onSelect, exclude }: CurrencySelectorProps) {
+export function CurrencySelector({ label, selected, onSelect, exclude, currencies = defaultCurrencies }: CurrencySelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);

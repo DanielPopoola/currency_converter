@@ -1,21 +1,36 @@
-import { useState } from "react";
-import { Search, Globe, Filter, Star, Clock } from "lucide-react";
-import { currencies } from "../data/currencies";
+import { useEffect, useState } from "react";
+import { Search, Globe, Star, Clock } from "lucide-react";
+import { Currency, currencies as defaultCurrencies, getCurrenciesFromCodes } from "../data/currencies";
+import { fetchSupportedCurrencies } from "../../lib/api";
 
 export function CurrenciesPage() {
+  const [currencies, setCurrencies] = useState<Currency[]>(defaultCurrencies);
   const [searchTerm, setSearchTerm] = useState("");
   const [favorites, setFavorites] = useState<string[]>(["USD", "EUR", "GBP"]);
 
+  useEffect(() => {
+    const loadCurrencies = async () => {
+      try {
+        const codes = await fetchSupportedCurrencies();
+        setCurrencies(getCurrenciesFromCodes(codes));
+      } catch (error) {
+        console.error("Failed to load supported currencies", error);
+      }
+    };
+
+    void loadCurrencies();
+  }, []);
+
   const toggleFavorite = (code: string) => {
-    setFavorites(prev =>
-      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
+    setFavorites((prev) =>
+      prev.includes(code) ? prev.filter((currencyCode) => currencyCode !== code) : [...prev, code],
     );
   };
 
   const filteredCurrencies = currencies.filter(
     (c) =>
       c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.name.toLowerCase().includes(searchTerm.toLowerCase())
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   const sortedCurrencies = [...filteredCurrencies].sort((a, b) => {
