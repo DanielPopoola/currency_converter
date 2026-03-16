@@ -7,19 +7,6 @@ export function CurrenciesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [favorites, setFavorites] = useState<string[]>(["USD", "EUR", "GBP"]);
 
-  useEffect(() => {
-    const loadCurrencies = async () => {
-      try {
-        const codes = await fetchSupportedCurrencies();
-        setCurrencies(getCurrenciesFromCodes(codes));
-      } catch (error) {
-        console.error("Failed to load supported currencies", error);
-      }
-    };
-
-    void loadCurrencies();
-  }, []);
-
   const toggleFavorite = (code: string) => {
     setFavorites((prev) =>
       prev.includes(code) ? prev.filter((currencyCode) => currencyCode !== code) : [...prev, code],
