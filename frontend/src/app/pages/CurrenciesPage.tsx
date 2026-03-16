@@ -1,21 +1,22 @@
 import { useState } from "react";
-import { Search, Globe, Filter, Star, Clock } from "lucide-react";
-import { currencies } from "../data/currencies";
+import { Search, Globe, Star, Clock } from "lucide-react";
+import { useSupportedCurrencies } from "../hooks/useSupportedCurrencies";
 
 export function CurrenciesPage() {
+  const { currencies } = useSupportedCurrencies();
   const [searchTerm, setSearchTerm] = useState("");
   const [favorites, setFavorites] = useState<string[]>(["USD", "EUR", "GBP"]);
 
   const toggleFavorite = (code: string) => {
-    setFavorites(prev =>
-      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
+    setFavorites((prev) =>
+      prev.includes(code) ? prev.filter((currencyCode) => currencyCode !== code) : [...prev, code],
     );
   };
 
   const filteredCurrencies = currencies.filter(
     (c) =>
       c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.name.toLowerCase().includes(searchTerm.toLowerCase())
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   const sortedCurrencies = [...filteredCurrencies].sort((a, b) => {

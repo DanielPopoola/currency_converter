@@ -1,32 +1,49 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { ArrowLeftRight, Calculator, RefreshCw, Sparkles, TrendingUp } from "lucide-react";
 import { CurrencySelector } from "../components/ui/CurrencySelector";
 import { ResultCard } from "../components/ui/ResultCard";
-import { currencies, Currency } from "../data/currencies";
-import { motion } from "motion/react";
+import { Currency, currencies as fallbackCurrencies } from "../data/currencies";
+import { fetchConversion } from "../../lib/api";
+import { useSupportedCurrencies } from "../hooks/useSupportedCurrencies";
 
 export function ConversionPage() {
-  const [from, setFrom] = useState<Currency>(currencies[0]); // USD
-  const [to, setTo] = useState<Currency>(currencies[1]); // EUR
+  const { currencies: supportedCurrencies } = useSupportedCurrencies();
+  const [from, setFrom] = useState<Currency>(fallbackCurrencies[0]);
+  const [to, setTo] = useState<Currency>(fallbackCurrencies[1]);
   const [amount, setAmount] = useState<string>("1000.00");
   const [isLoading, setIsLoading] = useState(false);
   const [hasConverted, setHasConverted] = useState(false);
   const [rate, setRate] = useState(0.923456);
+
+  useEffect(() => {
+    if (supportedCurrencies.length >= 2) {
+      setFrom((prev) => supportedCurrencies.find((currency) => currency.code === prev.code) ?? supportedCurrencies[0]);
+      setTo((prev) => supportedCurrencies.find((currency) => currency.code === prev.code) ?? supportedCurrencies[1]);
+    }
+  }, [supportedCurrencies]);
 
   const handleSwap = () => {
     setFrom(to);
     setTo(from);
   };
 
-  const handleConvert = useCallback(() => {
+  const handleConvert = useCallback(async () => {
+    const parsedAmount = Number.parseFloat(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return;
+    }
+
     setIsLoading(true);
-    // Mocking an API call with delay
-    setTimeout(() => {
-      setRate(0.85 + Math.random() * 0.2);
-      setIsLoading(false);
+    try {
+      const conversion = await fetchConversion(from.code, to.code, parsedAmount);
+      setRate(conversion.exchangeRate);
       setHasConverted(true);
-    }, 800);
-  }, []);
+    } catch (error) {
+      console.error("Conversion request failed", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [amount, from.code, to.code]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -39,7 +56,6 @@ export function ConversionPage() {
       </header>
 
       <div className="bg-[#111827] border border-[#1F2937] rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
-        {/* Subtle background glow */}
         <div className="absolute top-0 left-0 w-64 h-64 bg-teal-500/5 blur-[100px] pointer-events-none" />
         <div className="absolute bottom-0 right-0 w-64 h-64 bg-teal-500/5 blur-[100px] pointer-events-none" />
 
@@ -64,6 +80,7 @@ export function ConversionPage() {
 
           <div className="md:col-span-4">
             <CurrencySelector
+              currencies={supportedCurrencies}
               label="From"
               selected={from}
               onSelect={setFrom}
@@ -82,6 +99,7 @@ export function ConversionPage() {
 
           <div className="md:col-span-4">
             <CurrencySelector
+              currencies={supportedCurrencies}
               label="To"
               selected={to}
               onSelect={setTo}
@@ -103,7 +121,9 @@ export function ConversionPage() {
           </div>
 
           <button
-            onClick={handleConvert}
+            onClick={() => {
+              void handleConvert();
+            }}
             disabled={isLoading}
             className="w-full sm:w-auto px-8 py-3 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-[#0F1117] font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(20,184,166,0.3)] flex items-center justify-center gap-2"
           >
