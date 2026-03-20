@@ -83,15 +83,8 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 	if deps.db is None:
 		raise RuntimeError('Database is not initialized')
 
-	session = deps.db.session_factory()
-	try:
+	async with deps.db.managed_session() as session:
 		yield session
-		await session.commit()
-	except Exception:
-		await session.rollback()
-		raise
-	finally:
-		await session.close()
 
 
 def get_redis_cache() -> RedisCacheService:
